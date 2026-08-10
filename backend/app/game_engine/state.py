@@ -4,7 +4,7 @@ import string
 from sqlalchemy.orm import Session
 
 from app import logs
-from app.game_engine import board_data
+from app.game_engine import board_data, turn_engine
 from app.game_engine.rules import build_ruleset
 from app.models import Game, Player, Property
 
@@ -65,6 +65,9 @@ def start_game(db: Session, game: Game) -> Game:
 
     for space in board_data.purchasable_spaces():
         db.add(Property(game_id=game.id, space_index=space["index"], name=space["name"], price=space["price"]))
+
+    if game.play_mode == "virtual":
+        turn_engine.start_turn_order(game, game.players)
 
     game.status = "active"
     logs.write_event(db, game_id=game.id, kind="game_started", payload={"player_count": len(game.players)})

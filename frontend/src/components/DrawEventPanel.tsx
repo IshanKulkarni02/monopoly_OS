@@ -37,14 +37,14 @@ export function DrawEventPanel({
   const [spaceIndex, setSpaceIndex] = useState(EVENT_SPACES[0]?.index ?? 7)
 
   return (
-    <div className="flex flex-col gap-3 rounded-xl border border-neutral-800 bg-neutral-900 p-3">
-      <label className="text-xs text-neutral-400">
+    <div className="flex flex-col gap-3 rounded border-2 border-ink bg-board-card p-3">
+      <label className="text-xs font-bold uppercase tracking-wide text-ink-soft">
         {eventSystem === 'wheel' ? 'Spin the wheel for…' : 'Draw a card for…'}
       </label>
       <select
         value={spaceIndex}
         onChange={(e) => setSpaceIndex(Number(e.target.value))}
-        className="rounded-lg border border-neutral-700 bg-neutral-950 p-2"
+        className="w-full rounded border-2 border-ink bg-board-card p-2 text-ink focus:outline-none focus:ring-2 focus:ring-monopoly-red"
       >
         {EVENT_SPACES.map((s) => (
           <option key={s.index} value={s.index}>
@@ -55,11 +55,11 @@ export function DrawEventPanel({
       <button
         disabled={busy}
         onClick={() => onDraw(spaceIndex)}
-        className="rounded-lg bg-purple-700 py-2 font-medium hover:bg-purple-600 disabled:opacity-50"
+        className="rounded border-2 border-ink bg-monopoly-gold py-2 font-bold text-ink hover:bg-monopoly-gold-dark disabled:opacity-50"
       >
         {eventSystem === 'wheel' ? 'Spin' : 'Draw card'}
       </button>
-      {lastOutcome && <p className="text-sm text-neutral-200">{outcomeMessage(lastOutcome)}</p>}
+      {lastOutcome && <p className="text-sm font-semibold text-ink">{outcomeMessage(lastOutcome)}</p>}
     </div>
   )
 }

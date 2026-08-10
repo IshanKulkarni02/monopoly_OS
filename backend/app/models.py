@@ -28,12 +28,15 @@ class Game(Base):
     status: Mapped[str] = mapped_column(String, default="lobby")  # lobby | active | ended
     money_mode: Mapped[str] = mapped_column(String, default="banker_ledger")
     banker_mode: Mapped[str] = mapped_column(String, default="manual")  # manual | auto
+    play_mode: Mapped[str] = mapped_column(String, default="irl_companion")  # irl_companion | virtual
     board_template: Mapped[str] = mapped_column(String, default="classic")
     ruleset_json: Mapped[dict] = mapped_column(JSON, default=dict)
     host_player_id: Mapped[str | None] = mapped_column(String, nullable=True)
     host_token: Mapped[str] = mapped_column(String, default=_token)
     inflation_multiplier: Mapped[float] = mapped_column(Float, default=1.0)
     round_number: Mapped[int] = mapped_column(Integer, default=1)
+    turn_order: Mapped[list[str]] = mapped_column(JSON, default=list)
+    current_turn_player_id: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     players: Mapped[list["Player"]] = relationship(back_populates="game", cascade="all, delete-orphan")
@@ -54,6 +57,9 @@ class Player(Base):
     balance: Mapped[int] = mapped_column(Integer, default=1500)
     status: Mapped[str] = mapped_column(String, default="active")  # active | bankrupt | left
     jail_free_cards: Mapped[int] = mapped_column(Integer, default=0)
+    position: Mapped[int] = mapped_column(Integer, default=0)  # board space index; virtual play_mode only
+    in_jail: Mapped[bool] = mapped_column(Boolean, default=False)
+    jail_turns: Mapped[int] = mapped_column(Integer, default=0)
     joined_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     game: Mapped["Game"] = relationship(back_populates="players")

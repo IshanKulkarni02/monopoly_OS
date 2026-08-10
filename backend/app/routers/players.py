@@ -22,6 +22,8 @@ async def declare_landing(
 ):
     game = auth.get_game_or_404(db, code)
     player = auth.require_player(db, game, payload.player_id, x_player_token)
+    if game.play_mode == "virtual":
+        raise HTTPException(status_code=400, detail="Virtual games track your position automatically — use /roll instead")
     if game.banker_mode != "auto":
         raise HTTPException(status_code=400, detail="This game is not in auto banker mode")
 
@@ -48,6 +50,8 @@ async def draw_event(
 ):
     game = auth.get_game_or_404(db, code)
     player = auth.require_player(db, game, payload.player_id, x_player_token)
+    if game.play_mode == "virtual":
+        raise HTTPException(status_code=400, detail="Virtual games draw cards automatically when you land on them")
 
     space = board_data.space_by_index(payload.space_index)
     if space["type"] not in ("chance", "community_chest"):

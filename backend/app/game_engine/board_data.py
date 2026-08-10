@@ -80,6 +80,10 @@ PURCHASABLE_TYPES = {"property", "railroad", "utility"}
 RAILROAD_RENTS = [25, 50, 100, 200]  # indexed by (count owned by same owner - 1)
 UTILITY_MULTIPLIERS = [4, 10]  # indexed by (count owned by same owner - 1); multiplies last dice roll
 
+JAIL_SPACE_INDEX = 10
+JAIL_FINE = 50
+BOARD_SIZE = len(CLASSIC_BOARD)
+
 
 def space_by_index(index: int) -> dict:
     return CLASSIC_BOARD[index % len(CLASSIC_BOARD)]
