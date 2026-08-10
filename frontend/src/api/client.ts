@@ -76,6 +76,129 @@ export function listBoards(sessionToken?: string | null): Promise<BoardSummaryOu
   return request('/api/boards', { headers: sessionToken ? { 'x-session-token': sessionToken } : {} })
 }
 
+export function getBoard(key: string): Promise<BoardDetailOut> {
+  return request(`/api/boards/${key}`)
+}
+
+// --- Board editor: every call needs the owner's session token ---
+
+export function duplicateBoard(
+  sourceKey: string,
+  sessionToken: string,
+  input: { key: string; name: string; description: string },
+): Promise<BoardDetailOut> {
+  return request(`/api/boards/${sourceKey}/duplicate`, {
+    method: 'POST',
+    headers: { 'x-session-token': sessionToken },
+    body: JSON.stringify(input),
+  })
+}
+
+export function updateBoard(
+  key: string,
+  sessionToken: string,
+  input: { name?: string; description?: string },
+): Promise<BoardDetailOut> {
+  return request(`/api/boards/${key}`, {
+    method: 'PATCH',
+    headers: { 'x-session-token': sessionToken },
+    body: JSON.stringify(input),
+  })
+}
+
+export function deleteBoardTemplate(key: string, sessionToken: string): Promise<{ status: string }> {
+  return request(`/api/boards/${key}`, { method: 'DELETE', headers: { 'x-session-token': sessionToken } })
+}
+
+export interface TileFieldsInput {
+  name?: string
+  kind?: string
+  group_id?: string | null
+  price?: number | null
+  rent_model?: string
+  rent_table?: number[]
+  upgrade_costs?: number[]
+  mortgage_value?: number | null
+  tax_config?: Record<string, unknown>
+  mystery_deck_key?: string
+  special_effects?: unknown[]
+  locked?: boolean
+}
+
+export function insertTile(
+  key: string,
+  sessionToken: string,
+  input: { position: number; name: string; kind: string; fields?: TileFieldsInput },
+): Promise<BoardDetailOut> {
+  return request(`/api/boards/${key}/tiles`, {
+    method: 'POST',
+    headers: { 'x-session-token': sessionToken },
+    body: JSON.stringify({ position: input.position, name: input.name, kind: input.kind, fields: input.fields ?? {} }),
+  })
+}
+
+export function updateTile(
+  key: string,
+  tileId: string,
+  sessionToken: string,
+  fields: TileFieldsInput,
+): Promise<BoardDetailOut> {
+  return request(`/api/boards/${key}/tiles/${tileId}`, {
+    method: 'PATCH',
+    headers: { 'x-session-token': sessionToken },
+    body: JSON.stringify(fields),
+  })
+}
+
+export function removeTile(key: string, tileId: string, sessionToken: string): Promise<BoardDetailOut> {
+  return request(`/api/boards/${key}/tiles/${tileId}`, { method: 'DELETE', headers: { 'x-session-token': sessionToken } })
+}
+
+export function moveTile(key: string, tileId: string, otherTileId: string, sessionToken: string): Promise<BoardDetailOut> {
+  return request(`/api/boards/${key}/tiles/${tileId}/move`, {
+    method: 'POST',
+    headers: { 'x-session-token': sessionToken },
+    body: JSON.stringify({ other_tile_id: otherTileId }),
+  })
+}
+
+export function createGroup(
+  key: string,
+  sessionToken: string,
+  input: { key: string; name: string; color: string; rent_multiplier?: number | null },
+): Promise<BoardDetailOut> {
+  return request(`/api/boards/${key}/groups`, {
+    method: 'POST',
+    headers: { 'x-session-token': sessionToken },
+    body: JSON.stringify(input),
+  })
+}
+
+export function updateGroup(
+  key: string,
+  groupId: string,
+  sessionToken: string,
+  fields: { name?: string; color?: string; rent_multiplier?: number | null },
+): Promise<BoardDetailOut> {
+  return request(`/api/boards/${key}/groups/${groupId}`, {
+    method: 'PATCH',
+    headers: { 'x-session-token': sessionToken },
+    body: JSON.stringify(fields),
+  })
+}
+
+export function regenerateLayout(
+  key: string,
+  sessionToken: string,
+  input: { groupConstraints: Record<string, { min_gap?: number | null; max_gap?: number | null }>; seed?: number | null },
+): Promise<BoardDetailOut> {
+  return request(`/api/boards/${key}/generate`, {
+    method: 'POST',
+    headers: { 'x-session-token': sessionToken },
+    body: JSON.stringify({ group_constraints: input.groupConstraints, seed: input.seed ?? null }),
+  })
+}
+
 export function saveBoardTemplate(
   code: string,
   hostToken: string,
