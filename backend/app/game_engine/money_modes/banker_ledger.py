@@ -25,6 +25,24 @@ class GameEngineError(Exception):
     pass
 
 
+class InsufficientFundsError(GameEngineError):
+    """Raised only from `apply_transaction`'s own balance check — i.e. only
+    for *mandatory* payments (rent, tax, jail fine) that route straight
+    through it. Voluntary spends (purchase, build, mortgage payoff) pre-check
+    affordability themselves and raise a plain `GameEngineError` instead,
+    since "can't afford it" there just means the action doesn't happen, not
+    that the player is in trouble. Carries who was owed so a caller (bot AI,
+    or a bankruptcy UI) can offer/attempt liquidation against the right
+    creditor without re-parsing the error string."""
+
+    def __init__(self, player: Player, amount: int, creditor: Player | None):
+        self.player_id = player.id
+        self.amount = amount
+        self.creditor_player_id = creditor.id if creditor else None
+        owed_to = f" owed to {creditor.name}" if creditor else ""
+        super().__init__(f"{player.name} does not have enough cash ({amount} needed, has {player.balance}){owed_to}")
+
+
 def get_property_by_space(db: Session, game_id: str, space_index: int) -> Property | None:
     return (
         db.query(Property)
@@ -64,7 +82,7 @@ def apply_transaction(
         amount = round(amount / smallest) * smallest
 
     if from_player is not None and from_player.balance < amount:
-        raise GameEngineError(f"{from_player.name} does not have enough cash for this transaction")
+        raise InsufficientFundsError(from_player, amount, to_player)
 
     if track_notes and from_player is not None:
         try:

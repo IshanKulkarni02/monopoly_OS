@@ -14,6 +14,7 @@ import type {
   PlayMode,
   PurchaseResult,
   RollResult,
+  TradeOut,
   UserOut,
 } from './types'
 
@@ -49,6 +50,8 @@ export function createGame(input: {
   turnOrderMode: 'highest_roll_first' | 'entry_order'
   mysteryDeckMode: 'probability' | 'finite'
   trackDenominations: boolean
+  auctionEnabled?: boolean
+  tradingEnabled?: boolean
   sessionToken?: string | null
 }): Promise<GameCreateResponse> {
   return request('/api/games', {
@@ -72,6 +75,8 @@ export function createGame(input: {
       turn_order_mode: input.turnOrderMode,
       mystery_deck_mode: input.mysteryDeckMode,
       track_denominations: input.trackDenominations,
+      auction_enabled: input.auctionEnabled ?? false,
+      trading_enabled: input.tradingEnabled ?? true,
     }),
   })
 }
@@ -541,6 +546,99 @@ export function swapPlayers(code: string, hostToken: string, playerAId: string, 
 
 export function getPlayerTokens(code: string, hostToken: string): Promise<Record<string, string>> {
   return request(`/api/games/${code}/player_tokens`, { headers: { 'x-host-token': hostToken } })
+}
+
+// --- Auctions: at most one active per game, everyone bids/passes until one wins ---
+
+export function startAuction(code: string, playerId: string, playerToken: string, propertyId: string): Promise<GameStateOut> {
+  return request(`/api/games/${code}/auctions/start`, {
+    method: 'POST',
+    headers: { 'x-player-id': playerId, 'x-player-token': playerToken },
+    body: JSON.stringify({ property_id: propertyId }),
+  })
+}
+
+export function bidOnAuction(code: string, playerId: string, playerToken: string, amount: number): Promise<GameStateOut> {
+  return request(`/api/games/${code}/auctions/bid`, {
+    method: 'POST',
+    headers: { 'x-player-id': playerId, 'x-player-token': playerToken },
+    body: JSON.stringify({ amount }),
+  })
+}
+
+export function passAuction(code: string, playerId: string, playerToken: string): Promise<GameStateOut> {
+  return request(`/api/games/${code}/auctions/pass`, {
+    method: 'POST',
+    headers: { 'x-player-id': playerId, 'x-player-token': playerToken },
+  })
+}
+
+export function cancelAuction(code: string, hostToken: string): Promise<GameStateOut> {
+  return request(`/api/games/${code}/auctions/cancel`, { method: 'POST', headers: { 'x-host-token': hostToken } })
+}
+
+// --- Trading: propose an exchange of cash/properties/jail-free cards, the other player accepts/declines ---
+
+export interface ProposeTradeInput {
+  recipientId: string
+  offerCash?: number
+  offerPropertyIds?: string[]
+  offerJailCards?: number
+  requestCash?: number
+  requestPropertyIds?: string[]
+  requestJailCards?: number
+}
+
+export function proposeTrade(code: string, playerId: string, playerToken: string, input: ProposeTradeInput): Promise<TradeOut> {
+  return request(`/api/games/${code}/trades`, {
+    method: 'POST',
+    headers: { 'x-player-id': playerId, 'x-player-token': playerToken },
+    body: JSON.stringify({
+      recipient_id: input.recipientId,
+      offer_cash: input.offerCash ?? 0,
+      offer_property_ids: input.offerPropertyIds ?? [],
+      offer_jail_cards: input.offerJailCards ?? 0,
+      request_cash: input.requestCash ?? 0,
+      request_property_ids: input.requestPropertyIds ?? [],
+      request_jail_cards: input.requestJailCards ?? 0,
+    }),
+  })
+}
+
+export function acceptTrade(code: string, playerId: string, playerToken: string, tradeId: string): Promise<GameStateOut> {
+  return request(`/api/games/${code}/trades/${tradeId}/accept`, {
+    method: 'POST',
+    headers: { 'x-player-id': playerId, 'x-player-token': playerToken },
+  })
+}
+
+export function declineTrade(code: string, playerId: string, playerToken: string, tradeId: string): Promise<GameStateOut> {
+  return request(`/api/games/${code}/trades/${tradeId}/decline`, {
+    method: 'POST',
+    headers: { 'x-player-id': playerId, 'x-player-token': playerToken },
+  })
+}
+
+export function cancelTrade(code: string, playerId: string, playerToken: string, tradeId: string): Promise<GameStateOut> {
+  return request(`/api/games/${code}/trades/${tradeId}/cancel`, {
+    method: 'POST',
+    headers: { 'x-player-id': playerId, 'x-player-token': playerToken },
+  })
+}
+
+// --- Bankruptcy: liquidate everything, pay a creditor (or the bank), and drop out ---
+
+export function declareBankruptcy(
+  code: string,
+  playerId: string,
+  playerToken: string,
+  creditorPlayerId: string | null,
+): Promise<GameStateOut> {
+  return request(`/api/games/${code}/declare_bankruptcy`, {
+    method: 'POST',
+    headers: { 'x-player-id': playerId, 'x-player-token': playerToken },
+    body: JSON.stringify({ creditor_player_id: creditorPlayerId }),
+  })
 }
 
 export { ApiError }

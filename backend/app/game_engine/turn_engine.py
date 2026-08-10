@@ -46,11 +46,24 @@ def end_turn(db: Session, game: Game, *, player: Player) -> None:
         logs.write_event(db, game_id=game.id, kind="extra_turn_used", player_ids=[player.id], payload={"remaining": player.extra_turns})
         return
 
+    next_id = _next_active_player_id(db, game, after_player_id=player.id)
+    if next_id is None:
+        return
+    game.current_turn_player_id = next_id
+    logs.write_event(db, game_id=game.id, kind="turn_ended", player_ids=[player.id], payload={"next_player_id": next_id})
+
+
+def _next_active_player_id(db: Session, game: Game, *, after_player_id: str) -> str | None:
+    """The active player whose turn follows `after_player_id`, skipping
+    anyone with `skip_next_turn` set (consuming it as it's skipped past).
+    Shared by `end_turn` and `bankruptcy.declare_bankruptcy` — the latter
+    needs the exact same "who's up next" logic when it eliminates whoever
+    currently holds the turn."""
     order = game.turn_order
     active_ids = [pid for pid in order if _status(db, pid) == "active"]
     if not active_ids:
-        return
-    idx = active_ids.index(player.id) if player.id in active_ids else -1
+        return None
+    idx = active_ids.index(after_player_id) if after_player_id in active_ids else -1
 
     next_id = active_ids[(idx + 1) % len(active_ids)]
     for _ in range(len(active_ids)):  # bounded: never loop more than once per active player
@@ -62,9 +75,7 @@ def end_turn(db: Session, game: Game, *, player: Player) -> None:
             next_id = active_ids[(idx + 1) % len(active_ids)]
             continue
         break
-
-    game.current_turn_player_id = next_id
-    logs.write_event(db, game_id=game.id, kind="turn_ended", player_ids=[player.id], payload={"next_player_id": next_id})
+    return next_id
 
 
 def _status(db: Session, player_id: str) -> str:

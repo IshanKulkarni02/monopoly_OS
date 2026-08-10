@@ -14,7 +14,10 @@ export function PropertyBoard({
   myPlayerId,
   mortgagePercentage = 0.5,
   mortgageInterest = 0.1,
+  auctionEnabled = false,
+  auctionActive = false,
   onPurchase,
+  onStartAuction,
   onBuildHouse,
   onSellHouse,
   onMortgage,
@@ -25,7 +28,10 @@ export function PropertyBoard({
   myPlayerId?: string
   mortgagePercentage?: number
   mortgageInterest?: number
+  auctionEnabled?: boolean
+  auctionActive?: boolean
   onPurchase?: (propertyId: string) => void
+  onStartAuction?: (propertyId: string) => void
   onBuildHouse?: (propertyId: string) => void
   onSellHouse?: (propertyId: string) => void
   onMortgage?: (propertyId: string) => void
@@ -87,6 +93,14 @@ export function PropertyBoard({
                   className="rounded border-2 border-ink bg-monopoly-green px-3 py-1.5 text-sm font-bold text-white hover:bg-monopoly-green-dark"
                 >
                   Buy
+                </button>
+              )}
+              {!prop.owner_id && auctionEnabled && !auctionActive && onStartAuction && (
+                <button
+                  onClick={() => onStartAuction(prop.id)}
+                  className="rounded border-2 border-ink px-3 py-1.5 text-sm font-bold text-ink hover:bg-board"
+                >
+                  Auction it
                 </button>
               )}
               {canBuild && onBuildHouse && (

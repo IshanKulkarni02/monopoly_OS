@@ -116,6 +116,8 @@ export function Landing() {
   const [turnOrderMode, setTurnOrderMode] = useState<'highest_roll_first' | 'entry_order'>('highest_roll_first')
   const [mysteryDeckMode, setMysteryDeckMode] = useState<'probability' | 'finite'>('probability')
   const [trackDenominations, setTrackDenominations] = useState(false)
+  const [auctionEnabled, setAuctionEnabled] = useState(false)
+  const [tradingEnabled, setTradingEnabled] = useState(true)
   const [startingCash, setStartingCash] = useState('')
   const [showTwists, setShowTwists] = useState(false)
   const [eventSystem, setEventSystem] = useState<EventSystem>('cards')
@@ -207,6 +209,8 @@ export function Landing() {
         turnOrderMode,
         mysteryDeckMode,
         trackDenominations,
+        auctionEnabled,
+        tradingEnabled,
         sessionToken: account?.sessionToken,
       })
       saveSession({
@@ -429,6 +433,16 @@ export function Landing() {
               <label className="flex items-center gap-2 text-sm font-medium">
                 <input type="checkbox" checked={challengeBeforeBuy} onChange={(e) => setChallengeBeforeBuy(e.target.checked)} />
                 Coin-flip challenge before buying a property
+              </label>
+
+              <label className="flex items-center gap-2 text-sm font-medium">
+                <input type="checkbox" checked={auctionEnabled} onChange={(e) => setAuctionEnabled(e.target.checked)} />
+                Auction properties nobody buys
+              </label>
+
+              <label className="flex items-center gap-2 text-sm font-medium">
+                <input type="checkbox" checked={tradingEnabled} onChange={(e) => setTradingEnabled(e.target.checked)} />
+                Allow player-to-player trading
               </label>
 
               <label className="flex items-center gap-2 text-sm font-medium">

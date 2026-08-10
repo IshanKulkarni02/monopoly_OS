@@ -12,11 +12,11 @@ from sqlalchemy.orm import Session
 
 from app import logs
 from app.game_engine import board_engine
-from app.game_engine.money_modes.banker_ledger import apply_transaction
+from app.game_engine.money_modes.banker_ledger import GameEngineError, apply_transaction
 from app.models import Game, Player, Property, Transaction
 
 
-class HouseError(Exception):
+class HouseError(GameEngineError):
     pass
 
 

@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.db import init_db
-from app.routers import accounts, banker, board_editor, boards, currency, games, irl_live, players, transfer, virtual, ws
+from app.routers import accounts, auctions, banker, board_editor, boards, currency, games, irl_live, players, trading, transfer, virtual, ws
 
 
 @asynccontextmanager
@@ -38,6 +38,8 @@ app.include_router(boards.router)
 app.include_router(board_editor.router)
 app.include_router(currency.router)
 app.include_router(banker.router)
+app.include_router(auctions.router)
+app.include_router(trading.router)
 app.include_router(irl_live.router)
 app.include_router(players.router)
 app.include_router(transfer.router)
