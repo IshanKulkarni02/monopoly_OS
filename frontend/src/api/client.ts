@@ -216,4 +216,18 @@ export function endTurn(code: string, playerId: string, playerToken: string): Pr
   })
 }
 
+export function buildHouse(code: string, playerId: string, playerToken: string, propertyId: string): Promise<GameStateOut> {
+  return request(`/api/games/${code}/properties/${propertyId}/build_house`, {
+    method: 'POST',
+    headers: { 'x-player-id': playerId, 'x-player-token': playerToken },
+  })
+}
+
+export function sellHouse(code: string, playerId: string, playerToken: string, propertyId: string): Promise<GameStateOut> {
+  return request(`/api/games/${code}/properties/${propertyId}/sell_house`, {
+    method: 'POST',
+    headers: { 'x-player-id': playerId, 'x-player-token': playerToken },
+  })
+}
+
 export { ApiError }
