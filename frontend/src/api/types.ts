@@ -80,6 +80,7 @@ export interface BoardTileOut {
   tax_config: Record<string, unknown>
   mystery_deck_key: string
   special_effects: unknown[]
+  locked: boolean
 }
 
 export interface BoardSummaryOut {

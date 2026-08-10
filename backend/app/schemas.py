@@ -104,6 +104,7 @@ class BoardTileOut(BaseModel):
     tax_config: dict[str, Any]
     mystery_deck_key: str
     special_effects: list[Any]
+    locked: bool
 
 
 class BoardSummaryOut(BaseModel):
@@ -245,3 +246,61 @@ class SaveBoardTemplateRequest(BaseModel):
     key: str = Field(min_length=1, max_length=40, pattern=r"^[a-z0-9_-]+$")
     name: str = Field(min_length=1, max_length=60)
     description: str = Field(default="", max_length=200)
+
+
+class DuplicateBoardRequest(BaseModel):
+    key: str = Field(min_length=1, max_length=40, pattern=r"^[a-z0-9_-]+$")
+    name: str = Field(min_length=1, max_length=60)
+    description: str = Field(default="", max_length=200)
+
+
+class UpdateBoardRequest(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=60)
+    description: str | None = Field(default=None, max_length=200)
+
+
+class TileFieldsRequest(BaseModel):
+    """Shared by insert/update — every field optional so PATCH-style partial
+    updates work, and so insert can omit anything not relevant to a kind
+    (e.g. a 'go' tile has no price)."""
+    name: str | None = None
+    kind: str | None = None
+    group_id: str | None = None
+    price: int | None = Field(default=None, ge=0)
+    rent_model: str | None = None
+    rent_table: list[int] | None = None
+    upgrade_costs: list[int] | None = None
+    mortgage_value: int | None = Field(default=None, ge=0)
+    tax_config: dict[str, Any] | None = None
+    mystery_deck_key: str | None = None
+    special_effects: list[Any] | None = None
+    locked: bool | None = None
+
+
+class InsertTileRequest(BaseModel):
+    position: int = Field(ge=0)
+    name: str = Field(min_length=1, max_length=60)
+    kind: str
+    fields: TileFieldsRequest = TileFieldsRequest()
+
+
+class MoveTileRequest(BaseModel):
+    other_tile_id: str
+
+
+class CreateGroupRequest(BaseModel):
+    key: str = Field(min_length=1, max_length=30, pattern=r"^[a-zA-Z0-9_-]+$")
+    name: str = Field(min_length=1, max_length=40)
+    color: str = Field(default="#888888", max_length=20)
+    rent_multiplier: float | None = Field(default=None, ge=0)
+
+
+class UpdateGroupRequest(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=40)
+    color: str | None = Field(default=None, max_length=20)
+    rent_multiplier: float | None = None
+
+
+class RegenerateLayoutRequest(BaseModel):
+    group_constraints: dict[str, dict[str, int | None]] = {}
+    seed: int | None = None

@@ -132,6 +132,7 @@ class BoardTile(Base):
     mystery_deck_key: Mapped[str] = mapped_column(String, default="mystery")
     special_effects: Mapped[list] = mapped_column(JSON, default=list)
     extra: Mapped[dict] = mapped_column(JSON, default=dict)
+    locked: Mapped[bool] = mapped_column(Boolean, default=False)  # pinned in place for the generator
 
     board: Mapped["Board"] = relationship(back_populates="tiles")
     group: Mapped["BoardGroup | None"] = relationship()
