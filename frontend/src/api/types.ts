@@ -1,3 +1,14 @@
+export interface UserOut {
+  id: string
+  email: string
+  name: string
+}
+
+export interface AuthResponse {
+  user: UserOut
+  session_token: string
+}
+
 export interface PlayerOut {
   id: string
   name: string
@@ -78,6 +89,7 @@ export interface BoardSummaryOut {
   description: string
   size: number
   is_preset: boolean
+  owner_user_id: string | null
 }
 
 export interface BoardDetailOut extends BoardSummaryOut {
@@ -116,6 +128,8 @@ export interface GameStateOut {
     group_rent_multiplier: number
     jail_fine: number
     jail_max_turns: number
+    dice_count: number
+    turn_order_mode: 'highest_roll_first' | 'entry_order'
     [key: string]: unknown
   }
   inflation_multiplier: number
@@ -123,6 +137,7 @@ export interface GameStateOut {
   free_parking_pot_amount: number
   turn_order: string[]
   current_turn_player_id: string | null
+  pending_turn_order_rolls: { player_id: string; player_name: string; roll: number }[]
   players: PlayerOut[]
   properties: PropertyOut[]
   recent_log: EventLogOut[]
@@ -169,7 +184,7 @@ export interface PurchaseResult {
 
 export interface RollOutcome {
   outcome: 'moved' | 'stayed_in_jail'
-  dice: [number, number]
+  dice: number[]
   doubles?: boolean
   position?: number
   landing?: LandOutcome & { event?: DrawEventOutcome }
@@ -179,3 +194,14 @@ export interface RollResult {
   result: RollOutcome
   game: GameStateOut
 }
+
+export type OrderRollOutcome =
+  | { outcome: 'recorded'; waiting_on: string[] }
+  | { outcome: 'order_set'; turn_order: string[] }
+  | { outcome: 'tie'; tied_players: string[]; roll: number }
+
+export interface OrderRollResult {
+  outcome: OrderRollOutcome
+  game: GameStateOut
+}
+

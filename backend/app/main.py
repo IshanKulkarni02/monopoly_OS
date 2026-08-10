@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.db import init_db
-from app.routers import banker, boards, games, players, transfer, virtual, ws
+from app.routers import accounts, banker, boards, games, irl_live, players, transfer, virtual, ws
 
 
 @asynccontextmanager
@@ -31,9 +31,11 @@ def health():
     return {"status": "ok"}
 
 
+app.include_router(accounts.router)
 app.include_router(games.router)
 app.include_router(boards.router)
 app.include_router(banker.router)
+app.include_router(irl_live.router)
 app.include_router(players.router)
 app.include_router(transfer.router)
 app.include_router(virtual.router)

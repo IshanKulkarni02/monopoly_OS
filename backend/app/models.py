@@ -19,6 +19,32 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+class User(Base):
+    """An optional persistent account. Anonymous ephemeral play (join-by-code,
+    no login) still works everywhere it always has — a `User` only exists for
+    people who want a saved identity across games, e.g. to own custom board
+    templates. Nothing requires a `User` to exist."""
+
+    __tablename__ = "users"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_id)
+    email: Mapped[str] = mapped_column(String, unique=True, index=True)
+    password_hash: Mapped[str] = mapped_column(String)
+    name: Mapped[str] = mapped_column(String)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class UserSession(Base):
+    __tablename__ = "user_sessions"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_id)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"))
+    token: Mapped[str] = mapped_column(String, unique=True, index=True, default=_token)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+    user: Mapped["User"] = relationship()
+
+
 class Board(Base):
     """A reusable board layout — an ordered list of tiles plus their groups.
 
@@ -36,6 +62,7 @@ class Board(Base):
     description: Mapped[str] = mapped_column(String, default="")
     size: Mapped[int] = mapped_column(Integer)
     is_preset: Mapped[bool] = mapped_column(Boolean, default=False)
+    owner_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     default_ruleset_overrides: Mapped[dict] = mapped_column(JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
@@ -123,6 +150,7 @@ class Game(Base):
     banker_mode: Mapped[str] = mapped_column(String, default="manual")  # manual | auto
     play_mode: Mapped[str] = mapped_column(String, default="irl_companion")  # irl_companion | virtual
     board_id: Mapped[str | None] = mapped_column(ForeignKey("boards.id"), nullable=True)
+    owner_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     ruleset_json: Mapped[dict] = mapped_column(JSON, default=dict)
     host_player_id: Mapped[str | None] = mapped_column(String, nullable=True)
     host_token: Mapped[str] = mapped_column(String, default=_token)
@@ -130,6 +158,11 @@ class Game(Base):
     round_number: Mapped[int] = mapped_column(Integer, default=1)
     turn_order: Mapped[list[str]] = mapped_column(JSON, default=list)
     current_turn_player_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    # Setup-time dice-roll-for-order ceremony (IRL companion mode). A list of
+    # {"player_id": ..., "roll": ...} in the order the host recorded them —
+    # cleared once `turn_order` is finalized. Virtual mode never uses this;
+    # it seeds turn order from join time instead (no physical dice to record).
+    pending_turn_order_rolls: Mapped[list] = mapped_column(JSON, default=list)
     free_parking_pot_amount: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 

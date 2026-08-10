@@ -1,11 +1,11 @@
 from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy.orm import Session
 
-from app import auth, schemas
+from app import accounts, auth, schemas
 from app.bots import run_bots_until_human
 from app.connection_manager import manager
 from app.db import get_db
-from app.game_engine import inflation, state as game_state
+from app.game_engine import board_engine, inflation, state as game_state
 from app.models import Player
 from app.serializers import serialize_game_state
 
@@ -19,7 +19,11 @@ async def _broadcast_state(db: Session, game) -> schemas.GameStateOut:
 
 
 @router.post("", response_model=schemas.GameCreateResponse)
-def create_game(payload: schemas.GameCreateRequest, db: Session = Depends(get_db)):
+def create_game(
+    payload: schemas.GameCreateRequest,
+    db: Session = Depends(get_db),
+    x_session_token: str | None = Header(default=None),
+):
     overrides: dict = {}
     if payload.starting_cash:
         overrides["starting_cash"] = payload.starting_cash
@@ -31,6 +35,8 @@ def create_game(payload: schemas.GameCreateRequest, db: Session = Depends(get_db
         "trigger": payload.inflation_trigger,
         "rate": payload.inflation_rate,
     }
+    overrides["dice_count"] = payload.dice_count
+    overrides["turn_order_mode"] = payload.turn_order_mode
 
     try:
         game, host = game_state.create_game(
@@ -41,6 +47,9 @@ def create_game(payload: schemas.GameCreateRequest, db: Session = Depends(get_db
     game.banker_mode = payload.banker_mode
     game.money_mode = payload.money_mode
     game.play_mode = payload.play_mode
+    owner = accounts.get_current_user(db, x_session_token)
+    if owner:
+        game.owner_user_id = owner.id
     db.commit()
     db.refresh(game)
     return schemas.GameCreateResponse(
@@ -135,6 +144,29 @@ async def add_bot(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     return await _broadcast_state(db, game)
+
+
+@router.post("/{code}/save_board_template", response_model=schemas.BoardDetailOut)
+def save_board_template(
+    code: str,
+    payload: schemas.SaveBoardTemplateRequest,
+    db: Session = Depends(get_db),
+    x_host_token: str | None = Header(default=None),
+    x_session_token: str | None = Header(default=None),
+):
+    game = auth.get_game_or_404(db, code)
+    auth.require_host(game, x_host_token)
+    owner = accounts.require_user(db, x_session_token)
+
+    try:
+        clone = board_engine.clone_board(
+            db, game.board, key=payload.key, name=payload.name, description=payload.description,
+            owner_user_id=owner.id,
+        )
+    except board_engine.BoardEngineError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return schemas.BoardDetailOut.model_validate(clone)
 
 
 @router.post("/{code}/advance_round", response_model=schemas.GameStateOut)

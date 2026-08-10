@@ -30,3 +30,20 @@ def require_banker(db: Session, game: Game, player_id: str, token: str | None) -
     if not player.is_banker:
         raise HTTPException(status_code=403, detail="Only the banker can do this")
     return player
+
+
+def require_host_or_target_player(
+    db: Session, game: Game, target_player_id: str, *, host_token: str | None, player_id: str | None, player_token: str | None
+) -> Player:
+    """Authorizes an action taken *for* `target_player_id` — either the host
+    (driving on behalf of a player with no device connected) or that same
+    player acting for themselves. Used by the IRL host-driven flows where
+    either side may be the one holding the phone."""
+    target = db.get(Player, target_player_id)
+    if not target or target.game_id != game.id:
+        raise HTTPException(status_code=404, detail="Player not found in this game")
+    if host_token and host_token == game.host_token:
+        return target
+    if player_id == target_player_id and player_token and player_token == target.token:
+        return target
+    raise HTTPException(status_code=403, detail="Host token, or that player's own token, required")

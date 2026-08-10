@@ -105,3 +105,45 @@ def group_rent_multiplier(group: BoardGroup | None, ruleset: dict) -> float:
     if group is not None and group.rent_multiplier is not None:
         return group.rent_multiplier
     return ruleset.get("group_rent_multiplier", 2.0)
+
+
+def clone_board(
+    db: Session, source: Board, *, key: str, name: str, description: str, owner_user_id: str | None
+) -> Board:
+    """Duplicates a board's groups + tiles under a new key, e.g. "save this
+    game's board as a reusable template." Doesn't touch `default_ruleset_overrides`
+    beyond copying it forward — a saved template starts with the same
+    currency/starting-cash defaults as what it was cloned from."""
+    if get_board_by_key(db, key) is not None:
+        raise BoardEngineError(f"A board with key '{key}' already exists")
+
+    clone = Board(
+        key=key, name=name, description=description, size=source.size, is_preset=False,
+        owner_user_id=owner_user_id, default_ruleset_overrides=dict(source.default_ruleset_overrides),
+    )
+    db.add(clone)
+    db.flush()
+
+    group_map: dict[str, str] = {}
+    for group in source.groups:
+        new_group = BoardGroup(
+            board_id=clone.id, key=group.key, name=group.name, color=group.color,
+            rent_multiplier=group.rent_multiplier, sort_order=group.sort_order,
+        )
+        db.add(new_group)
+        db.flush()
+        group_map[group.id] = new_group.id
+
+    for tile in source.tiles:
+        db.add(BoardTile(
+            board_id=clone.id, position=tile.position, name=tile.name, kind=tile.kind,
+            group_id=group_map.get(tile.group_id) if tile.group_id else None,
+            price=tile.price, rent_model=tile.rent_model, rent_table=list(tile.rent_table),
+            upgrade_costs=list(tile.upgrade_costs), mortgage_value=tile.mortgage_value,
+            tax_config=dict(tile.tax_config), mystery_deck_key=tile.mystery_deck_key,
+            special_effects=list(tile.special_effects), extra=dict(tile.extra),
+        ))
+
+    db.commit()
+    db.refresh(clone)
+    return clone
