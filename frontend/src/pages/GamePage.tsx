@@ -29,6 +29,8 @@ import {
   advanceRound,
   rollDice,
   endTurn,
+  buildHouse,
+  sellHouse,
   getPlayerLog,
 } from '../api/client'
 import type { DrawEventOutcome, EventLogOut, LandOutcome, RollOutcome } from '../api/types'
@@ -229,6 +231,8 @@ export function GamePage() {
               players={state.players}
               myPlayerId={me.id}
               onPurchase={handlePurchase}
+              onBuildHouse={(propertyId) => guarded(() => buildHouse(code, me.id, session.playerToken, propertyId))}
+              onSellHouse={(propertyId) => guarded(() => sellHouse(code, me.id, session.playerToken, propertyId))}
             />
           </>
         )}

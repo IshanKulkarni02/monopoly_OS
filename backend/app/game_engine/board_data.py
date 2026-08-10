@@ -84,6 +84,17 @@ JAIL_SPACE_INDEX = 10
 JAIL_FINE = 50
 BOARD_SIZE = len(CLASSIC_BOARD)
 
+HOUSE_COSTS = {
+    "brown": 50,
+    "light_blue": 50,
+    "pink": 100,
+    "orange": 100,
+    "red": 150,
+    "yellow": 150,
+    "green": 200,
+    "dark_blue": 200,
+}
+
 
 def space_by_index(index: int) -> dict:
     return CLASSIC_BOARD[index % len(CLASSIC_BOARD)]
@@ -91,3 +102,7 @@ def space_by_index(index: int) -> dict:
 
 def purchasable_spaces() -> list[dict]:
     return [s for s in CLASSIC_BOARD if s["type"] in PURCHASABLE_TYPES]
+
+
+def spaces_in_color_group(color: str) -> list[dict]:
+    return [s for s in CLASSIC_BOARD if s.get("color") == color]

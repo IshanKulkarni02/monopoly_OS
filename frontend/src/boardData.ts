@@ -72,8 +72,23 @@ export const COLOR_SWATCH: Record<string, string> = {
   dark_blue: '#0d3b8c',
 }
 
+export const HOUSE_COSTS: Record<string, number> = {
+  brown: 50,
+  light_blue: 50,
+  pink: 100,
+  orange: 100,
+  red: 150,
+  yellow: 150,
+  green: 200,
+  dark_blue: 200,
+}
+
 export function spaceByIndex(index: number): BoardSpace {
   return CLASSIC_BOARD[index % CLASSIC_BOARD.length]
+}
+
+export function colorGroupSpaceIndices(color: string): number[] {
+  return CLASSIC_BOARD.filter((s) => s.color === color).map((s) => s.index)
 }
 
 export function formatMoney(amount: number): string {
