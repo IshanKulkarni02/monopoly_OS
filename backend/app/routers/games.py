@@ -40,6 +40,8 @@ def create_game(
     overrides["mystery_deck_mode"] = payload.mystery_deck_mode
     if payload.track_denominations:
         overrides["currency"] = {"track_denominations": True}
+    overrides["auction_enabled"] = payload.auction_enabled
+    overrides["trading_enabled"] = payload.trading_enabled
 
     try:
         game, host = game_state.create_game(

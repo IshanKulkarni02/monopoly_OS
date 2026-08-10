@@ -189,6 +189,10 @@ class Game(Base):
     # a shuffled draw order per deck, reshuffled once exhausted. Probability
     # mode (the default) doesn't use this at all.
     mystery_deck_state: Mapped[dict] = mapped_column(JSON, default=dict)
+    # At most one auction runs at a time per game (matches the physical game:
+    # everyone's attention is on one property). Empty dict = no active
+    # auction. See `game_engine/auctions.py` for the shape when populated.
+    active_auction: Mapped[dict] = mapped_column(JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     board: Mapped["Board | None"] = relationship()
@@ -254,6 +258,31 @@ class Transaction(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     game: Mapped["Game"] = relationship(back_populates="transactions")
+
+
+class Trade(Base):
+    """A proposed player-to-player exchange of cash, properties, and
+    jail-free cards. Unlike an auction (one at a time, resolved within a
+    single landing), trades are durable/historical like `Transaction` —
+    several can be proposed across a game, each needs a stable id to
+    accept/decline/cancel, and past trades stay visible."""
+
+    __tablename__ = "trades"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_id)
+    game_id: Mapped[str] = mapped_column(ForeignKey("games.id"))
+    proposer_id: Mapped[str] = mapped_column(ForeignKey("players.id"))
+    recipient_id: Mapped[str] = mapped_column(ForeignKey("players.id"))
+    offer_cash: Mapped[int] = mapped_column(Integer, default=0)
+    offer_property_ids: Mapped[list[str]] = mapped_column(JSON, default=list)
+    offer_jail_cards: Mapped[int] = mapped_column(Integer, default=0)
+    request_cash: Mapped[int] = mapped_column(Integer, default=0)
+    request_property_ids: Mapped[list[str]] = mapped_column(JSON, default=list)
+    request_jail_cards: Mapped[int] = mapped_column(Integer, default=0)
+    status: Mapped[str] = mapped_column(String, default="pending")  # pending | accepted | declined | cancelled
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+    game: Mapped["Game"] = relationship()
 
 
 class EventLogEntry(Base):

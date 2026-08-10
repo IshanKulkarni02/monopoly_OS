@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from app import auth, schemas
 from app.connection_manager import manager
 from app.db import get_db
-from app.game_engine import houses, mortgages
+from app.game_engine import bankruptcy, houses, mortgages
 from app.game_engine.money_modes import banker_ledger
 from app.models import Player, Property, Transaction
 from app.serializers import serialize_game_state
@@ -96,7 +96,7 @@ async def build_house(
     try:
         houses.build_house(db, game, player=player, property_=prop)
         db.commit()
-    except houses.HouseError as exc:
+    except banker_ledger.GameEngineError as exc:
         db.rollback()
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -120,7 +120,7 @@ async def sell_house(
     try:
         houses.sell_house(db, game, player=player, property_=prop)
         db.commit()
-    except houses.HouseError as exc:
+    except banker_ledger.GameEngineError as exc:
         db.rollback()
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -167,6 +167,32 @@ async def unmortgage_property(
 
     try:
         mortgages.unmortgage_property(db, game, player=player, property_=prop)
+        db.commit()
+    except banker_ledger.GameEngineError as exc:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return await _broadcast_state(db, game)
+
+
+@router.post("/declare_bankruptcy", response_model=schemas.GameStateOut)
+async def declare_bankruptcy(
+    code: str,
+    payload: schemas.DeclareBankruptcyRequest,
+    db: Session = Depends(get_db),
+    x_player_id: str = Header(...),
+    x_player_token: str = Header(...),
+):
+    game = auth.get_game_or_404(db, code)
+    player = auth.require_player(db, game, x_player_id, x_player_token)
+    creditor = None
+    if payload.creditor_player_id:
+        creditor = db.get(Player, payload.creditor_player_id)
+        if not creditor or creditor.game_id != game.id:
+            raise HTTPException(status_code=404, detail="creditor_player_id not found in this game")
+
+    try:
+        bankruptcy.declare_bankruptcy(db, game, player=player, creditor=creditor)
         db.commit()
     except banker_ledger.GameEngineError as exc:
         db.rollback()

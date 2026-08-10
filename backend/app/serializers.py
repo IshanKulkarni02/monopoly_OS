@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
 
 from app import schemas
-from app.models import EventLogEntry, Game, Transaction
+from app.models import EventLogEntry, Game, Trade, Transaction
 
 
 def serialize_game_state(db: Session, game: Game) -> schemas.GameStateOut:
@@ -18,6 +18,13 @@ def serialize_game_state(db: Session, game: Game) -> schemas.GameStateOut:
         db.query(Transaction)
         .filter(Transaction.game_id == game.id, Transaction.status == "pending")
         .order_by(Transaction.created_at.asc())
+        .all()
+    )
+
+    pending_trades = (
+        db.query(Trade)
+        .filter(Trade.game_id == game.id, Trade.status == "pending")
+        .order_by(Trade.created_at.asc())
         .all()
     )
 
@@ -41,4 +48,6 @@ def serialize_game_state(db: Session, game: Game) -> schemas.GameStateOut:
         properties=[schemas.PropertyOut.model_validate(p) for p in sorted(game.properties, key=lambda p: p.space_index)],
         recent_log=[schemas.EventLogOut.model_validate(e) for e in recent],
         pending_transfers=[schemas.TransactionOut.model_validate(t) for t in pending_transfers],
+        active_auction=game.active_auction,
+        pending_trades=[schemas.TradeOut.model_validate(t) for t in pending_trades],
     )

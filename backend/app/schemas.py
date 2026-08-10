@@ -45,6 +45,8 @@ class GameCreateRequest(BaseModel):
     turn_order_mode: Literal["highest_roll_first", "entry_order"] = "highest_roll_first"
     mystery_deck_mode: Literal["probability", "finite"] = "probability"
     track_denominations: bool = False
+    auction_enabled: bool = False
+    trading_enabled: bool = True
 
 
 class JoinGameRequest(BaseModel):
@@ -148,6 +150,53 @@ class EventLogOut(BaseModel):
     created_at: datetime
 
 
+class AuctionOut(BaseModel):
+    property_id: str
+    property_name: str
+    current_bid: int
+    current_bidder_id: str | None
+    eligible_ids: list[str]
+    passed_ids: list[str]
+    started_by: str
+
+
+class StartAuctionRequest(BaseModel):
+    property_id: str
+
+
+class BidRequest(BaseModel):
+    amount: int = Field(ge=1)
+
+
+class TradeOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    proposer_id: str
+    recipient_id: str
+    offer_cash: int
+    offer_property_ids: list[str]
+    offer_jail_cards: int
+    request_cash: int
+    request_property_ids: list[str]
+    request_jail_cards: int
+    status: str
+    created_at: datetime
+
+
+class ProposeTradeRequest(BaseModel):
+    recipient_id: str
+    offer_cash: int = Field(default=0, ge=0)
+    offer_property_ids: list[str] = []
+    offer_jail_cards: int = Field(default=0, ge=0)
+    request_cash: int = Field(default=0, ge=0)
+    request_property_ids: list[str] = []
+    request_jail_cards: int = Field(default=0, ge=0)
+
+
+class DeclareBankruptcyRequest(BaseModel):
+    creditor_player_id: str | None = None
+
+
 class GameStateOut(BaseModel):
     id: str
     code: str
@@ -168,6 +217,8 @@ class GameStateOut(BaseModel):
     properties: list[PropertyOut]
     recent_log: list[EventLogOut]
     pending_transfers: list[TransactionOut]
+    active_auction: dict[str, Any] = {}
+    pending_trades: list[TradeOut] = []
 
 
 class GameCreateResponse(BaseModel):

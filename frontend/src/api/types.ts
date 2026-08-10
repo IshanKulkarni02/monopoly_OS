@@ -98,6 +98,30 @@ export interface BoardDetailOut extends BoardSummaryOut {
   tiles: BoardTileOut[]
 }
 
+export interface AuctionState {
+  property_id: string
+  property_name: string
+  current_bid: number
+  current_bidder_id: string | null
+  eligible_ids: string[]
+  passed_ids: string[]
+  started_by: string
+}
+
+export interface TradeOut {
+  id: string
+  proposer_id: string
+  recipient_id: string
+  offer_cash: number
+  offer_property_ids: string[]
+  offer_jail_cards: number
+  request_cash: number
+  request_property_ids: string[]
+  request_jail_cards: number
+  status: 'pending' | 'accepted' | 'declined' | 'cancelled'
+  created_at: string
+}
+
 export type MoneyMode = 'banker_ledger' | 'cash_counter' | 'digital_transfer'
 export type EventSystem = 'cards' | 'wheel'
 export type PlayMode = 'irl_companion' | 'virtual'
@@ -132,6 +156,9 @@ export interface GameStateOut {
     jail_max_turns: number
     dice_count: number
     turn_order_mode: 'highest_roll_first' | 'entry_order'
+    auction_enabled: boolean
+    auction_min_increment: number
+    trading_enabled: boolean
     [key: string]: unknown
   }
   inflation_multiplier: number
@@ -144,6 +171,8 @@ export interface GameStateOut {
   properties: PropertyOut[]
   recent_log: EventLogOut[]
   pending_transfers: TransactionOut[]
+  active_auction: AuctionState | Record<string, never>
+  pending_trades: TradeOut[]
 }
 
 export interface GameCreateResponse {
