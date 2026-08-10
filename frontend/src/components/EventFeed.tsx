@@ -29,15 +29,15 @@ function describe(entry: EventLogOut): string {
 
 export function EventFeed({ entries, emptyLabel }: { entries: EventLogOut[]; emptyLabel: string }) {
   if (entries.length === 0) {
-    return <p className="text-sm text-neutral-500">{emptyLabel}</p>
+    return <p className="text-sm font-medium text-ink-soft">{emptyLabel}</p>
   }
 
   return (
     <ul className="flex flex-col-reverse gap-1.5">
       {entries.map((entry) => (
-        <li key={entry.id} className="rounded-lg border border-neutral-800 bg-neutral-900/60 px-3 py-2 text-sm">
-          <span className="text-neutral-200">{describe(entry)}</span>
-          <span className="ml-2 text-xs text-neutral-500">
+        <li key={entry.id} className="rounded border-2 border-ink bg-board-card px-3 py-2 text-sm">
+          <span className="font-medium text-ink">{describe(entry)}</span>
+          <span className="ml-2 text-xs font-medium text-ink-soft">
             {new Date(entry.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
           </span>
         </li>

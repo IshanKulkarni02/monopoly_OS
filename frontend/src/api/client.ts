@@ -7,7 +7,9 @@ import type {
   JoinGameResponse,
   LandOutcome,
   MoneyMode,
+  PlayMode,
   PurchaseResult,
+  RollResult,
 } from './types'
 
 class ApiError extends Error {}
@@ -29,6 +31,7 @@ export function createGame(input: {
   name?: string
   startingCash?: number
   bankerMode: 'manual' | 'auto'
+  playMode: PlayMode
   moneyMode: MoneyMode
   eventSystem: EventSystem
   freeParkingPot: boolean
@@ -44,6 +47,7 @@ export function createGame(input: {
       name: input.name || 'Monopoly Night',
       starting_cash: input.startingCash,
       banker_mode: input.bankerMode,
+      play_mode: input.playMode,
       money_mode: input.moneyMode,
       event_system: input.eventSystem,
       free_parking_pot: input.freeParkingPot,
@@ -187,6 +191,26 @@ export function confirmTransfer(code: string, playerId: string, playerToken: str
 
 export function declineTransfer(code: string, playerId: string, playerToken: string, transactionId: string): Promise<GameStateOut> {
   return request(`/api/games/${code}/transfer/${transactionId}/decline`, {
+    method: 'POST',
+    headers: { 'x-player-id': playerId, 'x-player-token': playerToken },
+  })
+}
+
+export function rollDice(
+  code: string,
+  playerId: string,
+  playerToken: string,
+  input: { useJailFreeCard?: boolean; payFine?: boolean } = {},
+): Promise<RollResult> {
+  return request(`/api/games/${code}/roll`, {
+    method: 'POST',
+    headers: { 'x-player-id': playerId, 'x-player-token': playerToken },
+    body: JSON.stringify({ use_jail_free_card: input.useJailFreeCard ?? false, pay_fine: input.payFine ?? false }),
+  })
+}
+
+export function endTurn(code: string, playerId: string, playerToken: string): Promise<GameStateOut> {
+  return request(`/api/games/${code}/end_turn`, {
     method: 'POST',
     headers: { 'x-player-id': playerId, 'x-player-token': playerToken },
   })

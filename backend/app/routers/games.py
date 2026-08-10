@@ -36,6 +36,7 @@ def create_game(payload: schemas.GameCreateRequest, db: Session = Depends(get_db
     )
     game.banker_mode = payload.banker_mode
     game.money_mode = payload.money_mode
+    game.play_mode = payload.play_mode
     db.commit()
     db.refresh(game)
     return schemas.GameCreateResponse(

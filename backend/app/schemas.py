@@ -9,6 +9,7 @@ class GameCreateRequest(BaseModel):
     name: str = Field(default="Monopoly Night", max_length=60)
     starting_cash: int | None = Field(default=None, ge=0)
     banker_mode: Literal["manual", "auto"] = "manual"
+    play_mode: Literal["irl_companion", "virtual"] = "irl_companion"
     money_mode: Literal["banker_ledger", "cash_counter", "digital_transfer"] = "banker_ledger"
     event_system: Literal["cards", "wheel"] = "cards"
     free_parking_pot: bool = False
@@ -31,6 +32,9 @@ class PlayerOut(BaseModel):
     balance: int
     status: str
     jail_free_cards: int
+    position: int
+    in_jail: bool
+    jail_turns: int
 
 
 class PropertyOut(BaseModel):
@@ -74,9 +78,12 @@ class GameStateOut(BaseModel):
     status: str
     money_mode: str
     banker_mode: str
+    play_mode: str
     ruleset: dict[str, Any]
     inflation_multiplier: float
     round_number: int
+    turn_order: list[str]
+    current_turn_player_id: str | None
     players: list[PlayerOut]
     properties: list[PropertyOut]
     recent_log: list[EventLogOut]
@@ -123,3 +130,8 @@ class TransferRequest(BaseModel):
 class DrawEventRequest(BaseModel):
     player_id: str
     space_index: int = Field(ge=0, le=39)
+
+
+class RollRequest(BaseModel):
+    use_jail_free_card: bool = False
+    pay_fine: bool = False

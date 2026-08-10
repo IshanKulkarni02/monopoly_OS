@@ -221,4 +221,11 @@ def apply_auto_banker_landing(
         txn = apply_pass_go(db, game, player=player)
         return {"outcome": "go_bonus", "transaction_id": txn.id, "amount": txn.amount}
 
+    if space_type == "go_to_jail":
+        player.position = board_data.JAIL_SPACE_INDEX
+        player.in_jail = True
+        player.jail_turns = 0
+        logs.write_event(db, game_id=game.id, kind="sent_to_jail", player_ids=[player.id], payload={})
+        return {"outcome": "sent_to_jail", "space_type": space_type}
+
     return {"outcome": "no_action", "space_type": space_type}

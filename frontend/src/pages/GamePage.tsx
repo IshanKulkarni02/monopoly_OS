@@ -10,6 +10,7 @@ import { CashCounterPanel } from '../components/CashCounterPanel'
 import { TransferPanel } from '../components/TransferPanel'
 import { DrawEventPanel } from '../components/DrawEventPanel'
 import { LandingPicker } from '../components/LandingPicker'
+import { VirtualPlayPanel } from '../components/VirtualPlayPanel'
 import { EventFeed } from '../components/EventFeed'
 import { formatMoney } from '../boardData'
 import {
@@ -26,11 +27,13 @@ import {
   confirmTransfer,
   declineTransfer,
   advanceRound,
+  rollDice,
+  endTurn,
   getPlayerLog,
 } from '../api/client'
-import type { DrawEventOutcome, EventLogOut, LandOutcome } from '../api/types'
+import type { DrawEventOutcome, EventLogOut, LandOutcome, RollOutcome } from '../api/types'
 
-type Tab = 'board' | 'banker' | 'transfer' | 'land' | 'draw' | 'log' | 'mylog'
+type Tab = 'board' | 'banker' | 'transfer' | 'land' | 'draw' | 'play' | 'log' | 'mylog'
 
 export function GamePage() {
   const { code = '' } = useParams()
@@ -45,7 +48,9 @@ export function GamePage() {
   const [purchaseMessage, setPurchaseMessage] = useState<string | null>(null)
   const [lastOutcome, setLastOutcome] = useState<LandOutcome | null>(null)
   const [lastDrawOutcome, setLastDrawOutcome] = useState<DrawEventOutcome | null>(null)
+  const [lastRoll, setLastRoll] = useState<RollOutcome | null>(null)
   const [myLog, setMyLog] = useState<EventLogOut[]>([])
+  const [initialTabSet, setInitialTabSet] = useState(false)
 
   useEffect(() => {
     if (tab === 'mylog' && session && state) {
@@ -54,6 +59,13 @@ export function GamePage() {
         .catch(() => {})
     }
   }, [tab, session, code, state])
+
+  useEffect(() => {
+    if (!initialTabSet && state?.status === 'active') {
+      setTab(state.play_mode === 'virtual' ? 'play' : 'board')
+      setInitialTabSet(true)
+    }
+  }, [state, initialTabSet])
 
   if (!state) {
     return <div className="p-6 text-center text-neutral-400">Loading game…</div>
@@ -78,19 +90,19 @@ export function GamePage() {
   if (!session || !me) {
     return (
       <div className="mx-auto flex min-h-screen max-w-md flex-col justify-center gap-4 p-6">
-        <h1 className="text-center text-2xl font-bold text-emerald-400">{state.name}</h1>
-        <p className="text-center text-sm text-neutral-400">Join code {code}</p>
+        <h1 className="text-center font-display text-3xl tracking-wide text-monopoly-red">{state.name}</h1>
+        <p className="text-center text-sm font-semibold text-ink-soft">Join code {code}</p>
         <form onSubmit={handleJoin} className="flex flex-col gap-3">
           <input
             placeholder="Your name"
             value={joinName}
             onChange={(e) => setJoinName(e.target.value)}
-            className="rounded-lg border border-neutral-700 bg-neutral-950 p-3"
+            className="w-full rounded border-2 border-ink bg-board-card p-3 text-ink placeholder:text-ink-soft focus:outline-none focus:ring-2 focus:ring-monopoly-red"
           />
-          {joinError && <p className="text-sm text-red-400">{joinError}</p>}
+          {joinError && <p className="text-sm font-semibold text-monopoly-red">{joinError}</p>}
           <button
             disabled={joinBusy || !joinName}
-            className="rounded-lg bg-emerald-700 py-3 font-medium hover:bg-emerald-600 disabled:opacity-50"
+            className="rounded border-2 border-ink bg-monopoly-red py-3 font-display text-lg tracking-wide text-white shadow-[3px_3px_0_#1a1a1a] transition hover:bg-monopoly-red-dark hover:shadow-[1px_1px_0_#1a1a1a] disabled:opacity-50 disabled:shadow-none"
           >
             Join game
           </button>
@@ -134,10 +146,10 @@ export function GamePage() {
   if (state.status === 'lobby') {
     return (
       <div className="mx-auto flex min-h-screen max-w-md flex-col gap-6 p-6">
-        <h1 className="text-center text-2xl font-bold">{state.name}</h1>
+        <h1 className="text-center font-display text-2xl tracking-wide text-monopoly-red">{state.name}</h1>
         <JoinCodeBadge code={state.code} />
         <div>
-          <h2 className="mb-2 text-sm font-medium text-neutral-400">Players ({state.players.length})</h2>
+          <h2 className="mb-2 text-xs font-bold uppercase tracking-wide text-ink-soft">Players ({state.players.length})</h2>
           <PlayerList
             players={state.players}
             myPlayerId={me.id}
@@ -149,48 +161,69 @@ export function GamePage() {
           <button
             disabled={actionBusy || state.players.length < 2}
             onClick={() => guarded(() => startGame(code, session.hostToken!))}
-            className="rounded-lg bg-emerald-700 py-3 font-medium hover:bg-emerald-600 disabled:opacity-50"
+            className="rounded border-2 border-ink bg-monopoly-green py-3 font-display text-lg tracking-wide text-white shadow-[3px_3px_0_#1a1a1a] transition hover:bg-monopoly-green-dark hover:shadow-[1px_1px_0_#1a1a1a] disabled:opacity-50 disabled:shadow-none"
           >
             {state.players.length < 2 ? 'Need at least 2 players' : 'Start game'}
           </button>
         )}
-        {actionError && <p className="text-center text-sm text-red-400">{actionError}</p>}
-        {!connected && <p className="text-center text-xs text-amber-500">Reconnecting…</p>}
+        {actionError && <p className="text-center text-sm font-semibold text-monopoly-red">{actionError}</p>}
+        {!connected && <p className="text-center text-xs font-semibold text-monopoly-gold-dark">Reconnecting…</p>}
       </div>
     )
   }
 
   const myPendingRequests = state.pending_transfers.filter((t) => t.from_player_id === me.id).length
+  const isVirtual = state.play_mode === 'virtual'
   const showBankerTab = me.is_banker && (state.money_mode === 'banker_ledger' || state.money_mode === 'cash_counter')
   const showTransferTab = state.money_mode === 'digital_transfer'
+  const showLandTab = !isVirtual && state.banker_mode === 'auto'
   const showAdvanceRound = me.is_banker && state.ruleset.inflation.enabled && state.ruleset.inflation.trigger === 'per_round'
 
   return (
     <div className="mx-auto flex min-h-screen max-w-md flex-col pb-20">
-      <header className="flex items-center justify-between border-b border-neutral-800 p-4">
+      <header className="flex items-center justify-between border-b-4 border-ink bg-monopoly-red p-4 text-white">
         <div>
-          <h1 className="font-bold">{state.name}</h1>
-          <p className="text-xs text-neutral-500">
+          <h1 className="font-display text-lg tracking-wide">{state.name}</h1>
+          <p className="text-xs font-medium text-white/80">
             Code {state.code} · {connected ? 'Live' : 'Reconnecting…'}
           </p>
           {state.ruleset.inflation.enabled && (
-            <p className="text-xs text-amber-400">
+            <p className="text-xs font-bold text-monopoly-gold">
               Inflation {state.inflation_multiplier.toFixed(2)}x · Round {state.round_number}
             </p>
           )}
         </div>
         <div className="text-right">
-          <p className="text-xs text-neutral-500">Your balance</p>
-          <p className="font-mono text-xl text-emerald-400">{formatMoney(me.balance)}</p>
-          {me.jail_free_cards > 0 && <p className="text-xs text-neutral-500">{me.jail_free_cards}x jail-free card</p>}
+          <p className="text-xs font-medium text-white/80">Your balance</p>
+          <p className="font-mono text-xl font-bold text-white">{formatMoney(me.balance)}</p>
+          {me.jail_free_cards > 0 && <p className="text-xs font-medium text-white/80">{me.jail_free_cards}x jail-free card</p>}
         </div>
       </header>
 
       <main className="flex-1 p-4">
-        {actionError && <p className="mb-3 text-sm text-red-400">{actionError}</p>}
+        {actionError && <p className="mb-3 text-sm font-semibold text-monopoly-red">{actionError}</p>}
+        {tab === 'play' && isVirtual && (
+          <VirtualPlayPanel
+            players={state.players}
+            properties={state.properties}
+            myPlayerId={me.id}
+            currentTurnPlayerId={state.current_turn_player_id}
+            busy={actionBusy}
+            error={actionError}
+            lastRoll={lastRoll}
+            onRoll={(opts) =>
+              guarded(async () => {
+                const res = await rollDice(code, me.id, session.playerToken, opts)
+                setLastRoll(res.result)
+              })
+            }
+            onEndTurn={() => guarded(() => endTurn(code, me.id, session.playerToken))}
+            onPurchase={handlePurchase}
+          />
+        )}
         {tab === 'board' && (
           <>
-            {purchaseMessage && <p className="mb-3 text-sm text-neutral-200">{purchaseMessage}</p>}
+            {purchaseMessage && <p className="mb-3 text-sm font-semibold text-ink">{purchaseMessage}</p>}
             <PropertyBoard
               properties={state.properties}
               players={state.players}
@@ -230,7 +263,7 @@ export function GamePage() {
           <button
             disabled={actionBusy}
             onClick={() => guarded(() => advanceRound(code, me.id, session.playerToken))}
-            className="mt-4 w-full rounded-lg border border-amber-700 py-2 text-sm font-medium text-amber-400 hover:bg-amber-950/40 disabled:opacity-50"
+            className="mt-4 w-full rounded border-2 border-ink bg-monopoly-gold py-2 text-sm font-bold text-ink hover:bg-monopoly-gold-dark disabled:opacity-50"
           >
             Advance to round {state.round_number + 1} (applies inflation)
           </button>
@@ -248,7 +281,7 @@ export function GamePage() {
             onDecline={(transactionId) => guarded(() => declineTransfer(code, me.id, session.playerToken, transactionId))}
           />
         )}
-        {tab === 'land' && state.banker_mode === 'auto' && (
+        {tab === 'land' && showLandTab && (
           <LandingPicker
             busy={actionBusy}
             lastOutcome={lastOutcome}
@@ -260,7 +293,7 @@ export function GamePage() {
             }
           />
         )}
-        {tab === 'draw' && (
+        {tab === 'draw' && !isVirtual && (
           <DrawEventPanel
             eventSystem={state.ruleset.event_system}
             busy={actionBusy}
@@ -277,7 +310,8 @@ export function GamePage() {
         {tab === 'mylog' && <EventFeed entries={myLog} emptyLabel="Nothing has happened to you yet" />}
       </main>
 
-      <nav className="fixed bottom-0 left-0 right-0 mx-auto flex max-w-md overflow-x-auto border-t border-neutral-800 bg-neutral-950">
+      <nav className="fixed bottom-0 left-0 right-0 mx-auto flex max-w-md overflow-x-auto border-t-4 border-ink bg-board-card">
+        {isVirtual && <TabButton label="Play" active={tab === 'play'} onClick={() => setTab('play')} />}
         <TabButton label="Board" active={tab === 'board'} onClick={() => setTab('board')} />
         {showBankerTab && <TabButton label="Banker" active={tab === 'banker'} onClick={() => setTab('banker')} />}
         {showTransferTab && (
@@ -287,10 +321,10 @@ export function GamePage() {
             onClick={() => setTab('transfer')}
           />
         )}
-        {state.banker_mode === 'auto' && (
-          <TabButton label="I landed…" active={tab === 'land'} onClick={() => setTab('land')} />
+        {showLandTab && <TabButton label="I landed…" active={tab === 'land'} onClick={() => setTab('land')} />}
+        {!isVirtual && (
+          <TabButton label={state.ruleset.event_system === 'wheel' ? 'Wheel' : 'Cards'} active={tab === 'draw'} onClick={() => setTab('draw')} />
         )}
-        <TabButton label={state.ruleset.event_system === 'wheel' ? 'Wheel' : 'Cards'} active={tab === 'draw'} onClick={() => setTab('draw')} />
         <TabButton label="Log" active={tab === 'log'} onClick={() => setTab('log')} />
         <TabButton label="My log" active={tab === 'mylog'} onClick={() => setTab('mylog')} />
       </nav>
@@ -300,7 +334,12 @@ export function GamePage() {
 
 function TabButton({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
   return (
-    <button onClick={onClick} className={`flex-1 whitespace-nowrap px-2 py-3 text-xs font-medium ${active ? 'text-emerald-400' : 'text-neutral-500'}`}>
+    <button
+      onClick={onClick}
+      className={`flex-1 whitespace-nowrap border-t-4 px-2 py-3 text-xs font-bold uppercase tracking-wide ${
+        active ? 'border-monopoly-red text-monopoly-red' : 'border-transparent text-ink-soft'
+      }`}
+    >
       {label}
     </button>
   )

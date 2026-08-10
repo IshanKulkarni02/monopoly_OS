@@ -6,6 +6,9 @@ export interface PlayerOut {
   balance: number
   status: 'active' | 'bankrupt' | 'left'
   jail_free_cards: number
+  position: number
+  in_jail: boolean
+  jail_turns: number
 }
 
 export interface PropertyOut {
@@ -41,6 +44,7 @@ export interface TransactionOut {
 
 export type MoneyMode = 'banker_ledger' | 'cash_counter' | 'digital_transfer'
 export type EventSystem = 'cards' | 'wheel'
+export type PlayMode = 'irl_companion' | 'virtual'
 
 export interface GameStateOut {
   id: string
@@ -49,6 +53,7 @@ export interface GameStateOut {
   status: 'lobby' | 'active' | 'ended'
   money_mode: MoneyMode
   banker_mode: 'manual' | 'auto'
+  play_mode: PlayMode
   ruleset: {
     starting_cash: number
     pass_go_bonus: number
@@ -59,6 +64,8 @@ export interface GameStateOut {
   }
   inflation_multiplier: number
   round_number: number
+  turn_order: string[]
+  current_turn_player_id: string | null
   players: PlayerOut[]
   properties: PropertyOut[]
   recent_log: EventLogOut[]
@@ -100,5 +107,18 @@ export interface DrawEventOutcome {
 export interface PurchaseResult {
   purchased: boolean
   challenge: { type: string; roll: number; passed: boolean } | null
+  game: GameStateOut
+}
+
+export interface RollOutcome {
+  outcome: 'moved' | 'stayed_in_jail'
+  dice: [number, number]
+  doubles?: boolean
+  position?: number
+  landing?: LandOutcome & { event?: DrawEventOutcome }
+}
+
+export interface RollResult {
+  result: RollOutcome
   game: GameStateOut
 }

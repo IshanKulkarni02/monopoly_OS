@@ -17,36 +17,36 @@ export function CashCounterPanel({
 
   return (
     <div className="flex flex-col gap-2">
-      <p className="text-sm text-neutral-400">
+      <p className="text-sm font-medium text-ink-soft">
         Quick cash-count adjustments — no from/to bookkeeping, just nudge a player's displayed balance
         to match what's in front of them.
       </p>
-      {error && <p className="text-sm text-red-400">{error}</p>}
+      {error && <p className="text-sm font-semibold text-monopoly-red">{error}</p>}
       {players.map((p) => {
         const amount = Number(amounts[p.id] ?? 20)
         return (
-          <div key={p.id} className="flex items-center gap-2 rounded-xl border border-neutral-800 bg-neutral-900 p-3">
+          <div key={p.id} className="flex items-center gap-2 rounded border-2 border-ink bg-board-card p-3">
             <div className="flex-1">
-              <div className="font-medium">{p.name}</div>
-              <div className="font-mono text-lg text-emerald-400">{formatMoney(p.balance)}</div>
+              <div className="font-bold text-ink">{p.name}</div>
+              <div className="font-mono text-lg font-bold text-monopoly-green">{formatMoney(p.balance)}</div>
             </div>
             <input
               type="number"
               value={amounts[p.id] ?? 20}
               onChange={(e) => setAmounts({ ...amounts, [p.id]: e.target.value })}
-              className="w-20 rounded-lg border border-neutral-700 bg-neutral-950 p-2 text-center"
+              className="w-20 rounded border-2 border-ink bg-board-card p-2 text-center text-ink focus:outline-none focus:ring-2 focus:ring-monopoly-red"
             />
             <button
               disabled={busy}
               onClick={() => onAdjust(p.id, -amount)}
-              className="rounded-lg bg-red-800 px-3 py-2 font-medium hover:bg-red-700 disabled:opacity-50"
+              className="rounded border-2 border-ink bg-monopoly-red px-3 py-2 font-bold text-white hover:bg-monopoly-red-dark disabled:opacity-50"
             >
               -
             </button>
             <button
               disabled={busy}
               onClick={() => onAdjust(p.id, amount)}
-              className="rounded-lg bg-emerald-700 px-3 py-2 font-medium hover:bg-emerald-600 disabled:opacity-50"
+              className="rounded border-2 border-ink bg-monopoly-green px-3 py-2 font-bold text-white hover:bg-monopoly-green-dark disabled:opacity-50"
             >
               +
             </button>
