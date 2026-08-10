@@ -1,3 +1,4 @@
+import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -42,6 +43,11 @@ app.include_router(virtual.router)
 app.include_router(ws.router)
 
 # Serve the built frontend as a single deployable artifact when present.
-_frontend_dist = Path(__file__).resolve().parent.parent.parent / "frontend" / "dist"
+# A PyInstaller desktop build has no source tree to walk up from — its data
+# files land relative to `sys._MEIPASS` (the bundle's extraction dir) instead.
+if getattr(sys, "frozen", False):
+    _frontend_dist = Path(getattr(sys, "_MEIPASS", ".")) / "frontend_dist"
+else:
+    _frontend_dist = Path(__file__).resolve().parent.parent.parent / "frontend" / "dist"
 if _frontend_dist.exists():
     app.mount("/", StaticFiles(directory=str(_frontend_dist), html=True), name="frontend")

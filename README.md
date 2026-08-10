@@ -62,6 +62,38 @@ Then open `http://localhost:8000` (or `http://<your-LAN-ip>:8000` for other play
 WiFi). Game data persists in a Docker volume (`monopoly_data`) as a SQLite file, so restarting the
 container doesn't lose in-progress games.
 
+## Run as a desktop app (macOS/Windows)
+
+For a host who'd rather double-click an icon than run terminal commands, `scripts/build_desktop.py`
+bundles the backend (with the built frontend inside it) into a standalone app using PyInstaller —
+no Python or Node install required to *run* it, only to *build* it. Launching it starts the server
+and opens your browser to it automatically; other players still join the same way, from their own
+phones on the same WiFi, using the LAN URL the app logs on startup.
+
+```bash
+python scripts/build_desktop.py
+```
+
+This produces:
+- **macOS**: `dist/monopoly_OS.app`, wrapped into `dist/monopoly_OS.dmg`
+- **Windows**: a standalone `dist/monopoly_OS.exe`
+
+PyInstaller can't cross-compile, so a Windows `.exe` has to actually be built on Windows — the
+same script runs there too, and `.github/workflows/build-desktop.yml` does exactly that in CI
+(macOS + Windows runners) on a version tag push or manual trigger, so you don't need a Windows
+machine yourself just to get the `.exe`.
+
+Game data lives in your OS's normal per-app data folder (`~/Library/Application Support/monopoly_OS/`
+on macOS, `%APPDATA%\monopoly_OS\` on Windows), not next to the app bundle, so it survives
+reinstalling/updating the app. If something goes wrong and no browser tab opens, check
+`launcher.log` in that same folder.
+
+**Neither build is code-signed** (that needs a paid Apple Developer / Windows code-signing
+certificate), so the OS will flag it the first time: macOS Gatekeeper says the app "can't be
+opened because it is from an unidentified developer" (right-click → Open, or allow it in System
+Settings → Privacy & Security), and Windows SmartScreen says "Windows protected your PC" (click
+"More info" → "Run anyway"). This is expected for an unsigned build, not a sign anything's wrong.
+
 ### Deploying to a server
 
 Push the same image to any host that can run a container (a small VPS, Fly.io, Railway, etc.),
