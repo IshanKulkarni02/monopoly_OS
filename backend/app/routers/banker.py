@@ -53,7 +53,7 @@ async def log_transaction(
     return await _broadcast_state(db, game)
 
 
-@router.post("/properties/{property_id}/purchase", response_model=schemas.GameStateOut)
+@router.post("/properties/{property_id}/purchase")
 async def purchase_property(
     code: str,
     property_id: str,
@@ -68,13 +68,14 @@ async def purchase_property(
         raise HTTPException(status_code=404, detail="Property not found")
 
     try:
-        banker_ledger.apply_purchase(db, game, player=player, property_=prop)
+        result = banker_ledger.apply_purchase(db, game, player=player, property_=prop)
         db.commit()
     except banker_ledger.GameEngineError as exc:
         db.rollback()
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    return await _broadcast_state(db, game)
+    state = await _broadcast_state(db, game)
+    return {"purchased": result["purchased"], "challenge": result["challenge"], "game": state}
 
 
 @router.post("/transactions/{transaction_id}/reverse", response_model=schemas.GameStateOut)

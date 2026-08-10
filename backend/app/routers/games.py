@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from app import auth, schemas
 from app.connection_manager import manager
 from app.db import get_db
-from app.game_engine import state as game_state
+from app.game_engine import inflation, state as game_state
 from app.models import Player
 from app.serializers import serialize_game_state
 
@@ -19,11 +19,23 @@ async def _broadcast_state(db: Session, game) -> schemas.GameStateOut:
 
 @router.post("", response_model=schemas.GameCreateResponse)
 def create_game(payload: schemas.GameCreateRequest, db: Session = Depends(get_db)):
-    overrides = {"starting_cash": payload.starting_cash} if payload.starting_cash else None
+    overrides: dict = {}
+    if payload.starting_cash:
+        overrides["starting_cash"] = payload.starting_cash
+    overrides["free_parking_pot"] = payload.free_parking_pot
+    overrides["event_system"] = payload.event_system
+    overrides["challenge_before_buy"] = {"enabled": payload.challenge_before_buy}
+    overrides["inflation"] = {
+        "enabled": payload.inflation_enabled,
+        "trigger": payload.inflation_trigger,
+        "rate": payload.inflation_rate,
+    }
+
     game, host = game_state.create_game(
         db, host_name=payload.host_name, name=payload.name, ruleset_overrides=overrides
     )
     game.banker_mode = payload.banker_mode
+    game.money_mode = payload.money_mode
     db.commit()
     db.refresh(game)
     return schemas.GameCreateResponse(
@@ -79,6 +91,21 @@ async def set_banker(
     if not player or player.game_id != game.id:
         raise HTTPException(status_code=404, detail="Player not found")
     player.is_banker = payload.is_banker
+    db.commit()
+
+    return await _broadcast_state(db, game)
+
+
+@router.post("/{code}/advance_round", response_model=schemas.GameStateOut)
+async def advance_round(
+    code: str,
+    db: Session = Depends(get_db),
+    x_player_id: str = Header(...),
+    x_player_token: str = Header(...),
+):
+    game = auth.get_game_or_404(db, code)
+    auth.require_banker(db, game, x_player_id, x_player_token)
+    inflation.advance_round(game)
     db.commit()
 
     return await _broadcast_state(db, game)

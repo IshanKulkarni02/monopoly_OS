@@ -60,7 +60,9 @@ def test_purchase_property_and_insufficient_funds(client):
         headers={"x-player-id": host_id, "x-player-token": host_player_token},
     )
     assert r.status_code == 200
-    state = r.json()
+    body = r.json()
+    assert body["purchased"] is True
+    state = body["game"]
     host_state = next(p for p in state["players"] if p["id"] == host_id)
     assert host_state["balance"] == 1500 - 400
     boardwalk_after = next(p for p in state["properties"] if p["name"] == "Boardwalk")

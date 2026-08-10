@@ -1,15 +1,17 @@
-"""Core transaction + auto-banker logic.
+"""Core transaction + auto-banker logic, shared by every money mode.
 
-Phase 1 only wires up the `banker_ledger` money mode (a human or the
-auto-banker logs a transaction and balances update immediately). The
-`Transaction.type` column and this module's shape already generalize to
-`cash_counter` and `digital_transfer` for Phase 2 without schema changes.
+`banker_ledger` (a human, or the auto-banker, logs a transaction and
+balances update immediately) is the base case every other money mode reuses:
+`cash_counter` is the same flow with a simpler UI, and `digital_transfer`'s
+immediate "send" also calls straight through to `apply_transaction` — only
+its request/confirm/decline flow (see `money_modes/digital_transfer.py`)
+needs the extra pending-then-settle step.
 """
 
 from sqlalchemy.orm import Session
 
 from app import logs
-from app.game_engine import board_data
+from app.game_engine import board_data, challenges, inflation
 from app.models import Game, Player, Property, Transaction
 
 
@@ -79,20 +81,42 @@ def apply_transaction(
     return txn
 
 
-def apply_purchase(db: Session, game: Game, *, player: Player, property_: Property) -> Transaction:
+def apply_purchase(db: Session, game: Game, *, player: Player, property_: Property) -> dict:
+    """Buy `property_` for `player`, honoring the challenge-before-buy twist
+    if it's enabled. Returns a result dict rather than just the Transaction
+    since a failed challenge is a normal, non-error outcome (property stays
+    unowned, no money moves) that the caller still needs to report.
+    """
     if property_.owner_id is not None:
         raise GameEngineError(f"{property_.name} is already owned")
     if property_.mortgaged:
         raise GameEngineError(f"{property_.name} is mortgaged and cannot be purchased")
-    if player.balance < property_.price:
+
+    price = inflation.inflated_amount(game, property_.price, "price")
+    if player.balance < price:
         raise GameEngineError(f"{player.name} cannot afford {property_.name}")
+
+    challenge_cfg = game.ruleset_json.get("challenge_before_buy", {})
+    challenge_result = None
+    if challenge_cfg.get("enabled"):
+        passed, roll = challenges.run_challenge(game)
+        challenge_result = {"type": challenge_cfg.get("type", "coin_flip"), "roll": roll, "passed": passed}
+        if not passed:
+            logs.write_event(
+                db,
+                game_id=game.id,
+                kind="challenge_failed",
+                player_ids=[player.id],
+                payload={"property_id": property_.id, "property_name": property_.name, **challenge_result},
+            )
+            return {"purchased": False, "challenge": challenge_result, "transaction_id": None}
 
     txn = apply_transaction(
         db,
         game,
         from_player=player,
         to_player=None,
-        amount=property_.price,
+        amount=price,
         reason=f"purchase:{property_.name}",
         created_by_player_id=player.id,
     )
@@ -104,14 +128,14 @@ def apply_purchase(db: Session, game: Game, *, player: Player, property_: Proper
         game_id=game.id,
         kind="purchase",
         player_ids=[player.id],
-        payload={"property_id": property_.id, "property_name": property_.name, "price": property_.price},
+        payload={"property_id": property_.id, "property_name": property_.name, "price": price},
     )
-    return txn
+    return {"purchased": True, "challenge": challenge_result, "transaction_id": txn.id}
 
 
 def apply_pass_go(db: Session, game: Game, *, player: Player) -> Transaction:
     bonus = game.ruleset_json.get("pass_go_bonus", 200)
-    return apply_transaction(
+    txn = apply_transaction(
         db,
         game,
         from_player=None,
@@ -120,6 +144,8 @@ def apply_pass_go(db: Session, game: Game, *, player: Player) -> Transaction:
         reason="pass_go",
         created_by_player_id=player.id,
     )
+    inflation.on_pass_go(game)
+    return txn
 
 
 def apply_auto_banker_landing(
@@ -166,6 +192,7 @@ def apply_auto_banker_landing(
         else:
             rent = 0
 
+        rent = inflation.inflated_amount(game, rent, "rent")
         txn = apply_transaction(
             db,
             game,
@@ -178,16 +205,17 @@ def apply_auto_banker_landing(
         return {"outcome": "rent_paid", "transaction_id": txn.id, "amount": rent, "paid_to": owner.name}
 
     if space_type == "tax":
+        tax_amount = inflation.inflated_amount(game, space["tax_amount"], "tax")
         txn = apply_transaction(
             db,
             game,
             from_player=player,
             to_player=None,
-            amount=space["tax_amount"],
+            amount=tax_amount,
             reason=f"tax:{space['name']}",
             created_by_player_id=player.id,
         )
-        return {"outcome": "tax_paid", "transaction_id": txn.id, "amount": space["tax_amount"]}
+        return {"outcome": "tax_paid", "transaction_id": txn.id, "amount": tax_amount}
 
     if space_type == "go":
         txn = apply_pass_go(db, game, player=player)

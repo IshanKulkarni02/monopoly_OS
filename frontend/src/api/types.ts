@@ -5,6 +5,7 @@ export interface PlayerOut {
   is_banker: boolean
   balance: number
   status: 'active' | 'bankrupt' | 'left'
+  jail_free_cards: number
 }
 
 export interface PropertyOut {
@@ -25,17 +26,43 @@ export interface EventLogOut {
   created_at: string
 }
 
+export interface TransactionOut {
+  id: string
+  type: string
+  from_player_id: string | null
+  to_player_id: string | null
+  amount: number
+  reason: string
+  created_by_player_id: string | null
+  reversed: boolean
+  status: 'pending' | 'confirmed' | 'declined'
+  created_at: string
+}
+
+export type MoneyMode = 'banker_ledger' | 'cash_counter' | 'digital_transfer'
+export type EventSystem = 'cards' | 'wheel'
+
 export interface GameStateOut {
   id: string
   code: string
   name: string
   status: 'lobby' | 'active' | 'ended'
-  money_mode: string
+  money_mode: MoneyMode
   banker_mode: 'manual' | 'auto'
-  ruleset: Record<string, unknown>
+  ruleset: {
+    starting_cash: number
+    pass_go_bonus: number
+    free_parking_pot: boolean
+    event_system: EventSystem
+    challenge_before_buy: { enabled: boolean; type: string }
+    inflation: { enabled: boolean; trigger: 'on_pass_go' | 'per_round'; rate: number; scope: string[] }
+  }
+  inflation_multiplier: number
+  round_number: number
   players: PlayerOut[]
   properties: PropertyOut[]
   recent_log: EventLogOut[]
+  pending_transfers: TransactionOut[]
 }
 
 export interface GameCreateResponse {
@@ -61,4 +88,17 @@ export interface LandOutcome {
   price?: number
   transaction_id?: string
   space_type?: string
+}
+
+export interface DrawEventOutcome {
+  kind: string
+  text: string
+  amount: number
+  transaction_ids: string[]
+}
+
+export interface PurchaseResult {
+  purchased: boolean
+  challenge: { type: string; roll: number; passed: boolean } | null
+  game: GameStateOut
 }

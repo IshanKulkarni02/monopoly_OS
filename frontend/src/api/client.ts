@@ -1,4 +1,14 @@
-import type { GameCreateResponse, GameStateOut, JoinGameResponse, LandOutcome } from './types'
+import type {
+  DrawEventOutcome,
+  EventLogOut,
+  EventSystem,
+  GameCreateResponse,
+  GameStateOut,
+  JoinGameResponse,
+  LandOutcome,
+  MoneyMode,
+  PurchaseResult,
+} from './types'
 
 class ApiError extends Error {}
 
@@ -19,6 +29,13 @@ export function createGame(input: {
   name?: string
   startingCash?: number
   bankerMode: 'manual' | 'auto'
+  moneyMode: MoneyMode
+  eventSystem: EventSystem
+  freeParkingPot: boolean
+  challengeBeforeBuy: boolean
+  inflationEnabled: boolean
+  inflationTrigger: 'on_pass_go' | 'per_round'
+  inflationRate: number
 }): Promise<GameCreateResponse> {
   return request('/api/games', {
     method: 'POST',
@@ -27,6 +44,13 @@ export function createGame(input: {
       name: input.name || 'Monopoly Night',
       starting_cash: input.startingCash,
       banker_mode: input.bankerMode,
+      money_mode: input.moneyMode,
+      event_system: input.eventSystem,
+      free_parking_pot: input.freeParkingPot,
+      challenge_before_buy: input.challengeBeforeBuy,
+      inflation_enabled: input.inflationEnabled,
+      inflation_trigger: input.inflationTrigger,
+      inflation_rate: input.inflationRate,
     }),
   })
 }
@@ -86,7 +110,7 @@ export function purchaseProperty(
   playerId: string,
   playerToken: string,
   propertyId: string,
-): Promise<GameStateOut> {
+): Promise<PurchaseResult> {
   return request(`/api/games/${code}/properties/${propertyId}/purchase`, {
     method: 'POST',
     headers: { 'x-player-id': playerId, 'x-player-token': playerToken },
@@ -105,8 +129,67 @@ export function declareLanding(
   })
 }
 
-export function getPlayerLog(code: string, playerId: string) {
+export function getPlayerLog(code: string, playerId: string): Promise<EventLogOut[]> {
   return request(`/api/games/${code}/players/${playerId}/log`)
+}
+
+export function advanceRound(code: string, playerId: string, playerToken: string): Promise<GameStateOut> {
+  return request(`/api/games/${code}/advance_round`, {
+    method: 'POST',
+    headers: { 'x-player-id': playerId, 'x-player-token': playerToken },
+  })
+}
+
+export function drawEvent(
+  code: string,
+  playerToken: string,
+  input: { playerId: string; spaceIndex: number },
+): Promise<{ outcome: DrawEventOutcome; game: GameStateOut }> {
+  return request(`/api/games/${code}/draw_event`, {
+    method: 'POST',
+    headers: { 'x-player-token': playerToken },
+    body: JSON.stringify({ player_id: input.playerId, space_index: input.spaceIndex }),
+  })
+}
+
+export function sendTransfer(
+  code: string,
+  playerId: string,
+  playerToken: string,
+  input: { otherPlayerId: string; amount: number; reason: string },
+): Promise<GameStateOut> {
+  return request(`/api/games/${code}/transfer/send`, {
+    method: 'POST',
+    headers: { 'x-player-id': playerId, 'x-player-token': playerToken },
+    body: JSON.stringify({ other_player_id: input.otherPlayerId, amount: input.amount, reason: input.reason }),
+  })
+}
+
+export function requestTransfer(
+  code: string,
+  playerId: string,
+  playerToken: string,
+  input: { otherPlayerId: string; amount: number; reason: string },
+): Promise<GameStateOut> {
+  return request(`/api/games/${code}/transfer/request`, {
+    method: 'POST',
+    headers: { 'x-player-id': playerId, 'x-player-token': playerToken },
+    body: JSON.stringify({ other_player_id: input.otherPlayerId, amount: input.amount, reason: input.reason }),
+  })
+}
+
+export function confirmTransfer(code: string, playerId: string, playerToken: string, transactionId: string): Promise<GameStateOut> {
+  return request(`/api/games/${code}/transfer/${transactionId}/confirm`, {
+    method: 'POST',
+    headers: { 'x-player-id': playerId, 'x-player-token': playerToken },
+  })
+}
+
+export function declineTransfer(code: string, playerId: string, playerToken: string, transactionId: string): Promise<GameStateOut> {
+  return request(`/api/games/${code}/transfer/${transactionId}/decline`, {
+    method: 'POST',
+    headers: { 'x-player-id': playerId, 'x-player-token': playerToken },
+  })
 }
 
 export { ApiError }

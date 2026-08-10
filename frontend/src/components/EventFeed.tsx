@@ -14,6 +14,14 @@ function describe(entry: EventLogOut): string {
       return `Game created by ${p.host_name}`
     case 'game_started':
       return `Game started with ${p.player_count} players`
+    case 'transfer_requested':
+      return `${p.requester} requested ${formatMoney(Number(p.amount))} from ${p.from}${p.reason ? ` (${p.reason})` : ''}`
+    case 'transfer_declined':
+      return `A ${formatMoney(Number(p.amount))} request was declined`
+    case 'jail_free_card':
+      return `Drew a get-out-of-jail-free card`
+    case 'challenge_failed':
+      return `Challenge failed for ${p.property_name} — no purchase`
     default:
       return entry.kind
   }
