@@ -43,6 +43,8 @@ class GameCreateRequest(BaseModel):
     inflation_rate: float = Field(default=0.0, ge=0, le=1)
     dice_count: int = Field(default=2, ge=1, le=4)
     turn_order_mode: Literal["highest_roll_first", "entry_order"] = "highest_roll_first"
+    mystery_deck_mode: Literal["probability", "finite"] = "probability"
+    track_denominations: bool = False
 
 
 class JoinGameRequest(BaseModel):
@@ -304,3 +306,50 @@ class UpdateGroupRequest(BaseModel):
 class RegenerateLayoutRequest(BaseModel):
     group_constraints: dict[str, dict[str, int | None]] = {}
     seed: int | None = None
+
+
+MYSTERY_EFFECT_KINDS = [
+    "bank_pays", "pay_bank", "pay_each_player", "collect_each_player", "jail_free",
+    "pass_go", "move_forward", "move_backward", "move_to", "lose_turn", "extra_turn", "nothing",
+]
+
+
+class MysteryCardOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    deck_key: str
+    text: str
+    effect_kind: str
+    amount: int
+    target_position: int | None
+    weight: int
+
+
+class CreateMysteryCardRequest(BaseModel):
+    deck_key: str = Field(min_length=1, max_length=40)
+    text: str = Field(min_length=1, max_length=200)
+    effect_kind: Literal[
+        "bank_pays", "pay_bank", "pay_each_player", "collect_each_player", "jail_free",
+        "pass_go", "move_forward", "move_backward", "move_to", "lose_turn", "extra_turn", "nothing",
+    ]
+    amount: int = Field(default=0, ge=0)
+    target_position: int | None = Field(default=None, ge=0)
+    weight: int = Field(default=1, ge=1)
+
+
+class UpdateMysteryCardRequest(BaseModel):
+    deck_key: str | None = Field(default=None, min_length=1, max_length=40)
+    text: str | None = Field(default=None, min_length=1, max_length=200)
+    effect_kind: str | None = None
+    amount: int | None = Field(default=None, ge=0)
+    target_position: int | None = Field(default=None, ge=0)
+    weight: int | None = Field(default=None, ge=1)
+
+
+class MakeChangeRequest(BaseModel):
+    amount: int = Field(ge=0)
+    denominations: list[int] = Field(min_length=1)
+
+
+class MakeChangeResponse(BaseModel):
+    breakdown: dict[str, int]

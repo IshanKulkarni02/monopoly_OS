@@ -13,8 +13,9 @@ import random
 from sqlalchemy.orm import Session
 
 from app import logs
-from app.game_engine import board_engine
-from app.game_engine.events import cards, resolve, wheel
+from app.game_engine import board_engine, mystery
+from app.game_engine.events import resolve, wheel
+from app.game_engine.events.base import EventOutcome
 from app.game_engine.money_modes.banker_ledger import (
     GameEngineError,
     apply_auto_banker_landing,
@@ -39,12 +40,29 @@ def require_current_player(game: Game, player: Player) -> None:
 
 def end_turn(db: Session, game: Game, *, player: Player) -> None:
     require_current_player(game, player)
+
+    if player.extra_turns > 0:
+        player.extra_turns -= 1
+        logs.write_event(db, game_id=game.id, kind="extra_turn_used", player_ids=[player.id], payload={"remaining": player.extra_turns})
+        return
+
     order = game.turn_order
     active_ids = [pid for pid in order if _status(db, pid) == "active"]
     if not active_ids:
         return
     idx = active_ids.index(player.id) if player.id in active_ids else -1
+
     next_id = active_ids[(idx + 1) % len(active_ids)]
+    for _ in range(len(active_ids)):  # bounded: never loop more than once per active player
+        next_player = db.get(Player, next_id)
+        if next_player and next_player.skip_next_turn:
+            next_player.skip_next_turn = False
+            logs.write_event(db, game_id=game.id, kind="turn_skipped", player_ids=[next_id], payload={})
+            idx = active_ids.index(next_id)
+            next_id = active_ids[(idx + 1) % len(active_ids)]
+            continue
+        break
+
     game.current_turn_player_id = next_id
     logs.write_event(db, game_id=game.id, kind="turn_ended", player_ids=[player.id], payload={"next_player_id": next_id})
 
@@ -142,7 +160,8 @@ def _maybe_draw_mystery(db: Session, game: Game, player: Player, position: int, 
     if event_system == "wheel":
         outcome = wheel.spin()
     else:
-        outcome = cards.draw(cards.deck_for_key(tile.mystery_deck_key))
+        card = mystery.draw(db, game, tile.mystery_deck_key)
+        outcome = EventOutcome(kind=card.effect_kind, amount=card.amount, text=card.text, target_position=card.target_position)
     return {**landing, "event": resolve.apply_event_outcome(db, game, player=player, outcome=outcome)}
 
 

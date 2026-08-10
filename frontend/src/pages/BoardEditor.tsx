@@ -5,17 +5,21 @@ import { BoardProvider } from '../hooks/useBoard'
 import { useAccount } from '../hooks/useAccount'
 import {
   createGroup,
+  createMysteryCard,
   deleteBoardTemplate,
+  deleteMysteryCard,
   getBoard,
   insertTile,
+  listMysteryCards,
   moveTile,
   regenerateLayout,
   removeTile,
   updateBoard,
   updateGroup,
+  updateMysteryCard,
   updateTile,
 } from '../api/client'
-import type { TileFieldsInput } from '../api/client'
+import type { MysteryCardOut, TileFieldsInput } from '../api/client'
 import type { BoardDetailOut, BoardTileOut } from '../api/types'
 import { DEFAULT_CURRENCY } from '../boardData'
 
@@ -206,6 +210,109 @@ function TileEditForm({
         </button>
         <button onClick={onClose} className="rounded border-2 border-ink px-3 py-1.5 text-sm font-bold text-ink-soft hover:bg-board-card">
           Cancel
+        </button>
+      </div>
+    </div>
+  )
+}
+
+const EFFECT_KINDS = [
+  'bank_pays', 'pay_bank', 'pay_each_player', 'collect_each_player', 'jail_free',
+  'pass_go', 'move_forward', 'move_backward', 'move_to', 'lose_turn', 'extra_turn', 'nothing',
+]
+
+function MysteryDeckEditor({ boardKey, deckKey, sessionToken }: { boardKey: string; deckKey: string; sessionToken: string }) {
+  const [cards, setCards] = useState<MysteryCardOut[]>([])
+  const [newText, setNewText] = useState('')
+  const [newEffect, setNewEffect] = useState('bank_pays')
+  const [newAmount, setNewAmount] = useState('0')
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    listMysteryCards(boardKey, deckKey).then(setCards).catch(() => {})
+  }, [boardKey, deckKey])
+
+  async function refresh() {
+    setCards(await listMysteryCards(boardKey, deckKey))
+  }
+
+  return (
+    <div className="flex flex-col gap-2 rounded border-2 border-ink bg-board p-2">
+      <p className="text-xs font-bold uppercase tracking-wide text-ink-soft">Deck: {deckKey}</p>
+      {error && <p className="text-xs font-semibold text-monopoly-red">{error}</p>}
+      {cards.map((card) => (
+        <div key={card.id} className="flex flex-wrap items-center gap-1.5 rounded border-2 border-ink bg-board-card p-1.5 text-xs">
+          <input
+            defaultValue={card.text}
+            onBlur={(e) =>
+              updateMysteryCard(boardKey, card.id, sessionToken, { text: e.target.value })
+                .then(refresh)
+                .catch((err) => setError(err instanceof Error ? err.message : 'Could not save'))
+            }
+            className="min-w-[120px] flex-1 rounded border border-ink bg-board p-1 text-ink"
+          />
+          <select
+            defaultValue={card.effect_kind}
+            onChange={(e) =>
+              updateMysteryCard(boardKey, card.id, sessionToken, { effect_kind: e.target.value })
+                .then(refresh)
+                .catch((err) => setError(err instanceof Error ? err.message : 'Could not save'))
+            }
+            className="rounded border border-ink bg-board p-1 text-ink"
+          >
+            {EFFECT_KINDS.map((k) => (
+              <option key={k} value={k}>{k}</option>
+            ))}
+          </select>
+          <input
+            type="number"
+            defaultValue={card.amount}
+            onBlur={(e) =>
+              updateMysteryCard(boardKey, card.id, sessionToken, { amount: Number(e.target.value) })
+                .then(refresh)
+                .catch((err) => setError(err instanceof Error ? err.message : 'Could not save'))
+            }
+            className="w-16 rounded border border-ink bg-board p-1 text-ink"
+          />
+          <button
+            onClick={() => deleteMysteryCard(boardKey, card.id, sessionToken).then(refresh)}
+            className="rounded border border-ink px-1.5 py-1 font-bold text-monopoly-red hover:bg-board"
+          >
+            ✕
+          </button>
+        </div>
+      ))}
+      <div className="flex flex-wrap items-center gap-1.5">
+        <input
+          placeholder="New card text"
+          value={newText}
+          onChange={(e) => setNewText(e.target.value)}
+          className="min-w-[120px] flex-1 rounded border-2 border-ink bg-board-card p-1 text-xs text-ink"
+        />
+        <select value={newEffect} onChange={(e) => setNewEffect(e.target.value)} className="rounded border-2 border-ink bg-board-card p-1 text-xs text-ink">
+          {EFFECT_KINDS.map((k) => (
+            <option key={k} value={k}>{k}</option>
+          ))}
+        </select>
+        <input
+          type="number"
+          value={newAmount}
+          onChange={(e) => setNewAmount(e.target.value)}
+          className="w-16 rounded border-2 border-ink bg-board-card p-1 text-xs text-ink"
+        />
+        <button
+          disabled={!newText}
+          onClick={() =>
+            createMysteryCard(boardKey, sessionToken, { deck_key: deckKey, text: newText, effect_kind: newEffect, amount: Number(newAmount) || 0 })
+              .then(() => {
+                setNewText('')
+                return refresh()
+              })
+              .catch((err) => setError(err instanceof Error ? err.message : 'Could not create'))
+          }
+          className="rounded border-2 border-ink bg-monopoly-green px-2 py-1 text-xs font-bold text-white hover:bg-monopoly-green-dark disabled:opacity-50"
+        >
+          + Add
         </button>
       </div>
     </div>
@@ -445,6 +552,15 @@ export function BoardEditor() {
             + Add group
           </button>
         </div>
+
+        {board.tiles.some((t) => t.kind === 'mystery') && (
+          <div className="flex flex-col gap-2 rounded border-2 border-ink bg-board-card p-3">
+            <h2 className="text-xs font-bold uppercase tracking-wide text-ink-soft">Mystery decks</h2>
+            {[...new Set(board.tiles.filter((t) => t.kind === 'mystery').map((t) => t.mystery_deck_key))].map((deckKey) => (
+              <MysteryDeckEditor key={deckKey} boardKey={board.key} deckKey={deckKey} sessionToken={account.sessionToken} />
+            ))}
+          </div>
+        )}
 
         <div className="flex flex-col gap-2 rounded border-2 border-ink bg-board-card p-3">
           <h2 className="text-xs font-bold uppercase tracking-wide text-ink-soft">Generator — regenerate layout</h2>

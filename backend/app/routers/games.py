@@ -37,6 +37,9 @@ def create_game(
     }
     overrides["dice_count"] = payload.dice_count
     overrides["turn_order_mode"] = payload.turn_order_mode
+    overrides["mystery_deck_mode"] = payload.mystery_deck_mode
+    if payload.track_denominations:
+        overrides["currency"] = {"track_denominations": True}
 
     try:
         game, host = game_state.create_game(

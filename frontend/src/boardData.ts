@@ -26,3 +26,11 @@ export function groupPositions(tiles: BoardTileOut[], groupId: string | null | u
 export function formatMoney(amount: number, symbol: string = DEFAULT_CURRENCY.symbol): string {
   return `${symbol}${amount.toLocaleString()}`
 }
+
+export function denominationSummary(denominations: Record<string, number>, symbol: string): string | null {
+  const entries = Object.entries(denominations)
+    .filter(([, count]) => count > 0)
+    .sort((a, b) => Number(b[0]) - Number(a[0]))
+  if (entries.length === 0) return null
+  return entries.map(([note, count]) => `${count}×${symbol}${note}`).join('  ')
+}
