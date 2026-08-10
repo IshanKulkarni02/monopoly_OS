@@ -1,17 +1,18 @@
 """Seeds the built-in board presets on startup (idempotent — checked by
 `Board.key`, so this is safe to call on every boot).
 
-Two boards ship with the engine:
+Four boards ship with the engine:
 
 - `classic`: the standard 40-space layout, ported tile-for-tile from what
-  used to be the hardcoded `board_data.py` constant, so every existing game
-  behaves identically now that it's reading from the database instead.
-- `current_game`: the spec's own 24-tile, ₹5,000-starting-cash, five-group
-  (2/3/3/3/4) INR layout — the proof that the data model is genuinely
-  generic and not just "classic Monopoly with extra steps." Its non-corner
-  layout is produced by `board_generator.generate_layout` with a fixed seed,
-  so it's reproducible and doubles as a real exercise of the generator this
-  engine will expose through the Board Editor.
+  used to be the hardcoded `board_data.py` constant.
+- `indian` / `european`: the same 40-tile structure, prices, and rent math
+  as `classic` — reskinned with regional city names and currency. Proves
+  the "board template" concept is a real reskin, not hardcoded per-region
+  logic; the only thing that differs is data (`tile_name_overrides` +
+  `default_ruleset_overrides.currency`).
+- `current_game`: the spec's own 24-tile, five-group (2/3/3/3/4) INR layout,
+  generated onto the model by `board_generator.generate_layout` with a
+  fixed seed.
 """
 
 from sqlalchemy.orm import Session
@@ -81,46 +82,76 @@ CLASSIC_TILES: list[tuple] = [
     (39, "Boardwalk", "property", "dark_blue", 400, [50, 200, 600, 1400, 1700, 2000], None, None),
 ]
 
+INDIAN_NAME_OVERRIDES: dict[int, str] = {
+    1: "Kanpur", 3: "Patna",
+    6: "Nagpur", 8: "Indore", 9: "Bhopal",
+    11: "Lucknow", 13: "Surat", 14: "Vadodara",
+    16: "Jaipur", 18: "Ahmedabad", 19: "Chandigarh",
+    21: "Pune", 23: "Kochi", 24: "Chennai",
+    26: "Kolkata", 27: "Hyderabad", 29: "Bangalore",
+    31: "Gurugram", 32: "Noida", 34: "Delhi",
+    37: "Bandra, Mumbai", 39: "Marine Drive, Mumbai",
+    5: "Howrah Junction", 15: "Chennai Central", 25: "New Delhi Railway Station", 35: "CST Mumbai",
+    12: "State Electricity Board", 28: "Municipal Water Supply",
+    4: "Income Tax", 38: "GST",
+}
 
-def seed_classic_board(db: Session) -> Board:
-    existing = board_engine.get_board_by_key(db, "classic")
+EUROPEAN_NAME_OVERRIDES: dict[int, str] = {
+    1: "Warsaw", 3: "Athens",
+    6: "Lisbon", 8: "Prague", 9: "Budapest",
+    11: "Dublin", 13: "Brussels", 14: "Copenhagen",
+    16: "Stockholm", 18: "Helsinki", 19: "Oslo",
+    21: "Vienna", 23: "Madrid", 24: "Barcelona",
+    26: "Amsterdam", 27: "Munich", 29: "Milan",
+    31: "Berlin", 32: "Rome", 34: "London",
+    37: "Zurich", 39: "Paris",
+    5: "Eurostar", 15: "TGV Line", 25: "ICE Express", 35: "Trans-Europ Express",
+    12: "European Power Grid", 28: "Continental Water Co.",
+    4: "Income Tax", 38: "VAT",
+}
+
+
+def _tile_rent_model_and_upgrades(group_key: str | None) -> tuple[str, list[int]]:
+    if group_key == "railroad":
+        return "group_count_table", []
+    if group_key == "utility":
+        return "dice_multiplier_table", []
+    if group_key is not None:
+        return "fixed_table", [CLASSIC_HOUSE_COSTS[group_key]] * 5
+    return "fixed_table", []
+
+
+def _seed_classic_structured_board(
+    db: Session, *, key: str, name: str, description: str,
+    currency_symbol: str, denominations: list[int], starting_cash: int,
+    name_overrides: dict[int, str] | None = None,
+) -> Board:
+    existing = board_engine.get_board_by_key(db, key)
     if existing:
         return existing
 
     board = Board(
-        key="classic",
-        name="Classic (40-tile)",
-        description="The standard 40-space Monopoly layout — 8 color groups, 4 railroads, 2 utilities.",
-        size=40,
-        is_preset=True,
-        default_ruleset_overrides={"currency": {"symbol": "$", "denominations": [1, 5, 10, 20, 50, 100, 500]}},
+        key=key, name=name, description=description, size=40, is_preset=True,
+        default_ruleset_overrides={
+            "starting_cash": starting_cash,
+            "currency": {"symbol": currency_symbol, "denominations": denominations},
+        },
     )
     db.add(board)
     db.flush()
 
     group_rows: dict[str, BoardGroup] = {}
-    for i, (key, meta) in enumerate(CLASSIC_GROUPS.items()):
-        g = BoardGroup(board_id=board.id, key=key, name=meta["name"], color=meta["color"], sort_order=i)
+    for i, (gkey, meta) in enumerate(CLASSIC_GROUPS.items()):
+        g = BoardGroup(board_id=board.id, key=gkey, name=meta["name"], color=meta["color"], sort_order=i)
         db.add(g)
         db.flush()
-        group_rows[key] = g
+        group_rows[gkey] = g
 
-    for position, name, kind, group_key, price, rent_table, tax_config, deck_key in CLASSIC_TILES:
-        if group_key == "railroad":
-            rent_model = "group_count_table"
-            upgrade_costs: list[int] = []
-        elif group_key == "utility":
-            rent_model = "dice_multiplier_table"
-            upgrade_costs = []
-        elif group_key is not None:
-            rent_model = "fixed_table"
-            upgrade_costs = [CLASSIC_HOUSE_COSTS[group_key]] * 5
-        else:
-            rent_model = "fixed_table"
-            upgrade_costs = []
-
+    overrides = name_overrides or {}
+    for position, base_name, kind, group_key, price, rent_table, tax_config, deck_key in CLASSIC_TILES:
+        rent_model, upgrade_costs = _tile_rent_model_and_upgrades(group_key)
         db.add(BoardTile(
-            board_id=board.id, position=position, name=name, kind=kind,
+            board_id=board.id, position=position, name=overrides.get(position, base_name), kind=kind,
             group_id=group_rows[group_key].id if group_key else None,
             price=price, rent_model=rent_model, rent_table=rent_table or [],
             upgrade_costs=upgrade_costs, tax_config=tax_config or {},
@@ -130,6 +161,32 @@ def seed_classic_board(db: Session) -> Board:
     db.commit()
     db.refresh(board)
     return board
+
+
+def seed_classic_board(db: Session) -> Board:
+    return _seed_classic_structured_board(
+        db, key="classic", name="Classic (40-tile)",
+        description="The standard 40-space Monopoly layout — 8 color groups, 4 railroads, 2 utilities.",
+        currency_symbol="$", denominations=[1, 5, 10, 20, 50, 100, 500], starting_cash=1500,
+    )
+
+
+def seed_indian_board(db: Session) -> Board:
+    return _seed_classic_structured_board(
+        db, key="indian", name="Indian Cities (40-tile, ₹)",
+        description="The classic 40-tile layout reskinned with Indian cities and INR currency — same prices and rent math as Classic.",
+        currency_symbol="₹", denominations=[10, 20, 50, 100, 200, 500], starting_cash=1500,
+        name_overrides=INDIAN_NAME_OVERRIDES,
+    )
+
+
+def seed_european_board(db: Session) -> Board:
+    return _seed_classic_structured_board(
+        db, key="european", name="European Cities (40-tile, €)",
+        description="The classic 40-tile layout reskinned with European cities and euro currency — same prices and rent math as Classic.",
+        currency_symbol="€", denominations=[5, 10, 20, 50, 100, 200, 500], starting_cash=1500,
+        name_overrides=EUROPEAN_NAME_OVERRIDES,
+    )
 
 
 # --- current_game: the spec's 24-tile, five-group, INR preset -------------
@@ -254,4 +311,6 @@ def seed_current_game_board(db: Session, *, generator_seed: int = 42) -> Board:
 
 def seed_all(db: Session) -> None:
     seed_classic_board(db)
+    seed_indian_board(db)
+    seed_european_board(db)
     seed_current_game_board(db)

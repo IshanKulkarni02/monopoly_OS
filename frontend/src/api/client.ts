@@ -1,4 +1,6 @@
 import type {
+  AuthResponse,
+  BoardDetailOut,
   BoardSummaryOut,
   DrawEventOutcome,
   EventLogOut,
@@ -8,9 +10,11 @@ import type {
   JoinGameResponse,
   LandOutcome,
   MoneyMode,
+  OrderRollResult,
   PlayMode,
   PurchaseResult,
   RollResult,
+  UserOut,
 } from './types'
 
 class ApiError extends Error {}
@@ -41,9 +45,13 @@ export function createGame(input: {
   inflationEnabled: boolean
   inflationTrigger: 'on_pass_go' | 'per_round'
   inflationRate: number
+  diceCount: number
+  turnOrderMode: 'highest_roll_first' | 'entry_order'
+  sessionToken?: string | null
 }): Promise<GameCreateResponse> {
   return request('/api/games', {
     method: 'POST',
+    headers: input.sessionToken ? { 'x-session-token': input.sessionToken } : {},
     body: JSON.stringify({
       host_name: input.hostName,
       name: input.name || 'Monopoly Night',
@@ -58,12 +66,43 @@ export function createGame(input: {
       inflation_enabled: input.inflationEnabled,
       inflation_trigger: input.inflationTrigger,
       inflation_rate: input.inflationRate,
+      dice_count: input.diceCount,
+      turn_order_mode: input.turnOrderMode,
     }),
   })
 }
 
-export function listBoards(): Promise<BoardSummaryOut[]> {
-  return request('/api/boards')
+export function listBoards(sessionToken?: string | null): Promise<BoardSummaryOut[]> {
+  return request('/api/boards', { headers: sessionToken ? { 'x-session-token': sessionToken } : {} })
+}
+
+export function saveBoardTemplate(
+  code: string,
+  hostToken: string,
+  sessionToken: string,
+  input: { key: string; name: string; description: string },
+): Promise<BoardDetailOut> {
+  return request(`/api/games/${code}/save_board_template`, {
+    method: 'POST',
+    headers: { 'x-host-token': hostToken, 'x-session-token': sessionToken },
+    body: JSON.stringify({ key: input.key, name: input.name, description: input.description }),
+  })
+}
+
+export function signup(email: string, password: string, name: string): Promise<AuthResponse> {
+  return request('/api/auth/signup', { method: 'POST', body: JSON.stringify({ email, password, name }) })
+}
+
+export function login(email: string, password: string): Promise<AuthResponse> {
+  return request('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) })
+}
+
+export function logout(sessionToken: string): Promise<{ status: string }> {
+  return request('/api/auth/logout', { method: 'POST', headers: { 'x-session-token': sessionToken } })
+}
+
+export function getMe(sessionToken: string): Promise<UserOut> {
+  return request('/api/auth/me', { headers: { 'x-session-token': sessionToken } })
 }
 
 export function joinGame(code: string, name: string): Promise<JoinGameResponse> {
@@ -251,6 +290,73 @@ export function addBot(code: string, hostToken: string, name?: string): Promise<
     headers: { 'x-host-token': hostToken },
     body: JSON.stringify({ name: name || null }),
   })
+}
+
+// --- IRL live-play: turn-order ceremony, host-driven rolls, GM corrections ---
+// Every call here accepts EITHER a host token (host acting for any player)
+// OR that specific player's own id+token (self-service, phone connected).
+
+interface ActingAs {
+  hostToken?: string | null
+  playerId?: string | null
+  playerToken?: string | null
+}
+
+function actingHeaders(actor: ActingAs): Record<string, string> {
+  const headers: Record<string, string> = {}
+  if (actor.hostToken) headers['x-host-token'] = actor.hostToken
+  if (actor.playerId) headers['x-player-id'] = actor.playerId
+  if (actor.playerToken) headers['x-player-token'] = actor.playerToken
+  return headers
+}
+
+export function rollForOrder(code: string, actor: ActingAs, input: { playerId: string; roll: number }): Promise<OrderRollResult> {
+  return request(`/api/games/${code}/roll_for_order`, {
+    method: 'POST',
+    headers: actingHeaders(actor),
+    body: JSON.stringify({ player_id: input.playerId, roll: input.roll }),
+  })
+}
+
+export function rollForPlayer(
+  code: string,
+  actor: ActingAs,
+  input: { playerId: string; dice: number[]; useJailFreeCard?: boolean; payFine?: boolean },
+): Promise<RollResult> {
+  return request(`/api/games/${code}/roll_for_player`, {
+    method: 'POST',
+    headers: actingHeaders(actor),
+    body: JSON.stringify({
+      player_id: input.playerId,
+      dice: input.dice,
+      use_jail_free_card: input.useJailFreeCard ?? false,
+      pay_fine: input.payFine ?? false,
+    }),
+  })
+}
+
+export function movePlayer(
+  code: string,
+  hostToken: string,
+  input: { playerId: string; position: number; resolveLanding?: boolean },
+): Promise<GameStateOut> {
+  return request(`/api/games/${code}/players/${input.playerId}/move`, {
+    method: 'POST',
+    headers: { 'x-host-token': hostToken },
+    body: JSON.stringify({ player_id: input.playerId, position: input.position, resolve_landing: input.resolveLanding ?? true }),
+  })
+}
+
+export function swapPlayers(code: string, hostToken: string, playerAId: string, playerBId: string): Promise<GameStateOut> {
+  return request(`/api/games/${code}/players/swap`, {
+    method: 'POST',
+    headers: { 'x-host-token': hostToken },
+    body: JSON.stringify({ player_a_id: playerAId, player_b_id: playerBId }),
+  })
+}
+
+export function getPlayerTokens(code: string, hostToken: string): Promise<Record<string, string>> {
+  return request(`/api/games/${code}/player_tokens`, { headers: { 'x-host-token': hostToken } })
 }
 
 export { ApiError }
