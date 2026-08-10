@@ -4,13 +4,20 @@ import string
 from sqlalchemy.orm import Session
 
 from app import logs
-from app.game_engine import board_engine, turn_engine
+from app.game_engine import board_engine, currency, turn_engine
 from app.game_engine.rules import build_ruleset
 from app.models import Game, Player, Property
 
 _CODE_ALPHABET = "".join(c for c in string.ascii_uppercase + string.digits if c not in "0O1I")
 
 DEFAULT_BOARD_KEY = "classic"
+
+
+def _seed_denominations(player: Player, ruleset: dict) -> None:
+    cfg = ruleset.get("currency", {})
+    if not cfg.get("track_denominations") or not cfg.get("denominations"):
+        return
+    player.denominations = currency.seed_denominations(player.balance, cfg["denominations"])
 
 
 def generate_join_code(db: Session, length: int = 5) -> str:
@@ -51,6 +58,7 @@ def create_game(
         is_banker=True,
         balance=game.ruleset_json["starting_cash"],
     )
+    _seed_denominations(host, game.ruleset_json)
     db.add(host)
     db.flush()
 
@@ -69,6 +77,7 @@ def join_game(db: Session, game: Game, *, name: str) -> Player:
     if game.status != "lobby":
         raise ValueError("This game has already started; new players can't join mid-game")
     player = Player(game_id=game.id, name=name, balance=game.ruleset_json["starting_cash"])
+    _seed_denominations(player, game.ruleset_json)
     db.add(player)
     db.flush()
     logs.write_event(db, game_id=game.id, kind="player_joined", player_ids=[player.id], payload={"name": name})
@@ -90,6 +99,7 @@ def add_bot(db: Session, game: Game, *, name: str | None = None) -> Player:
         is_bot=True,
         balance=game.ruleset_json["starting_cash"],
     )
+    _seed_denominations(bot, game.ruleset_json)
     db.add(bot)
     db.flush()
     logs.write_event(db, game_id=game.id, kind="bot_added", player_ids=[bot.id], payload={"name": bot.name})

@@ -34,6 +34,8 @@ import {
   endTurn,
   buildHouse,
   sellHouse,
+  mortgageProperty,
+  unmortgageProperty,
   addBot,
   addPlayer,
   getPlayerLog,
@@ -338,8 +340,12 @@ export function GamePage() {
               players={state.players}
               myPlayerId={me.id}
               onPurchase={handlePurchase}
+              mortgagePercentage={state.ruleset.mortgage_percentage}
+              mortgageInterest={state.ruleset.mortgage_interest}
               onBuildHouse={(propertyId) => guarded(() => buildHouse(code, me.id, session.playerToken, propertyId))}
               onSellHouse={(propertyId) => guarded(() => sellHouse(code, me.id, session.playerToken, propertyId))}
+              onMortgage={(propertyId) => guarded(() => mortgageProperty(code, me.id, session.playerToken, propertyId))}
+              onUnmortgage={(propertyId) => guarded(() => unmortgageProperty(code, me.id, session.playerToken, propertyId))}
             />
           </>
         )}

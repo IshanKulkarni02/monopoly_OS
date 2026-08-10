@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from app import auth, schemas
 from app.connection_manager import manager
 from app.db import get_db
-from app.game_engine import houses
+from app.game_engine import houses, mortgages
 from app.game_engine.money_modes import banker_ledger
 from app.models import Player, Property, Transaction
 from app.serializers import serialize_game_state
@@ -121,6 +121,54 @@ async def sell_house(
         houses.sell_house(db, game, player=player, property_=prop)
         db.commit()
     except houses.HouseError as exc:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return await _broadcast_state(db, game)
+
+
+@router.post("/properties/{property_id}/mortgage", response_model=schemas.GameStateOut)
+async def mortgage_property(
+    code: str,
+    property_id: str,
+    db: Session = Depends(get_db),
+    x_player_id: str = Header(...),
+    x_player_token: str = Header(...),
+):
+    game = auth.get_game_or_404(db, code)
+    player = auth.require_player(db, game, x_player_id, x_player_token)
+    prop = db.get(Property, property_id)
+    if not prop or prop.game_id != game.id:
+        raise HTTPException(status_code=404, detail="Property not found")
+
+    try:
+        mortgages.mortgage_property(db, game, player=player, property_=prop)
+        db.commit()
+    except banker_ledger.GameEngineError as exc:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return await _broadcast_state(db, game)
+
+
+@router.post("/properties/{property_id}/unmortgage", response_model=schemas.GameStateOut)
+async def unmortgage_property(
+    code: str,
+    property_id: str,
+    db: Session = Depends(get_db),
+    x_player_id: str = Header(...),
+    x_player_token: str = Header(...),
+):
+    game = auth.get_game_or_404(db, code)
+    player = auth.require_player(db, game, x_player_id, x_player_token)
+    prop = db.get(Property, property_id)
+    if not prop or prop.game_id != game.id:
+        raise HTTPException(status_code=404, detail="Property not found")
+
+    try:
+        mortgages.unmortgage_property(db, game, player=player, property_=prop)
+        db.commit()
+    except banker_ledger.GameEngineError as exc:
         db.rollback()
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 

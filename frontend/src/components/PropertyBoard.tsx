@@ -12,16 +12,24 @@ export function PropertyBoard({
   properties,
   players,
   myPlayerId,
+  mortgagePercentage = 0.5,
+  mortgageInterest = 0.1,
   onPurchase,
   onBuildHouse,
   onSellHouse,
+  onMortgage,
+  onUnmortgage,
 }: {
   properties: PropertyOut[]
   players: PlayerOut[]
   myPlayerId?: string
+  mortgagePercentage?: number
+  mortgageInterest?: number
   onPurchase?: (propertyId: string) => void
   onBuildHouse?: (propertyId: string) => void
   onSellHouse?: (propertyId: string) => void
+  onMortgage?: (propertyId: string) => void
+  onUnmortgage?: (propertyId: string) => void
 }) {
   const formatMoney = useFormatMoney()
   const { tiles, groups } = useBoard()
@@ -47,6 +55,10 @@ export function PropertyBoard({
         const canSell = isMine && canUpgrade && prop.houses > 0
         const upgradeCost = tile?.upgrade_costs[prop.houses]
         const sellRefund = tile?.upgrade_costs[prop.houses - 1]
+        const mortgageValue = tile?.mortgage_value ?? Math.round(prop.price * mortgagePercentage)
+        const payoff = Math.round(mortgageValue * (1 + mortgageInterest))
+        const canMortgage = isMine && !prop.mortgaged && prop.houses === 0
+        const canUnmortgage = isMine && prop.mortgaged
         return (
           <div
             key={prop.id}
@@ -91,6 +103,22 @@ export function PropertyBoard({
                   className="rounded border-2 border-ink px-3 py-1.5 text-sm font-bold text-ink hover:bg-board"
                 >
                   Sell upgrade (+{formatMoney(Math.floor((sellRefund ?? 0) / 2))})
+                </button>
+              )}
+              {canMortgage && onMortgage && (
+                <button
+                  onClick={() => onMortgage(prop.id)}
+                  className="rounded border-2 border-ink px-3 py-1.5 text-sm font-bold text-ink hover:bg-board"
+                >
+                  Mortgage (+{formatMoney(mortgageValue)})
+                </button>
+              )}
+              {canUnmortgage && onUnmortgage && (
+                <button
+                  onClick={() => onUnmortgage(prop.id)}
+                  className="rounded border-2 border-ink bg-monopoly-gold px-3 py-1.5 text-sm font-bold text-ink hover:bg-monopoly-gold-dark"
+                >
+                  Unmortgage (−{formatMoney(payoff)})
                 </button>
               )}
               {isMine && <span className="text-xs font-bold text-monopoly-green">Yours</span>}

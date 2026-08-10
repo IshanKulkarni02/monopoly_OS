@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from app import accounts, schemas
 from app.db import get_db
 from app.game_engine import board_engine, board_generator
-from app.models import Board, BoardGroup, BoardTile, User
+from app.models import Board, BoardGroup, BoardTile, MysteryCard, User
 
 router = APIRouter(prefix="/api/boards/{key}", tags=["board_editor"])
 
@@ -35,6 +35,13 @@ def _get_group(db: Session, board: Board, group_id: str) -> BoardGroup:
     if not group or group.board_id != board.id:
         raise HTTPException(status_code=404, detail="Group not found")
     return group
+
+
+def _get_card(db: Session, board: Board, card_id: str) -> MysteryCard:
+    card = db.get(MysteryCard, card_id)
+    if not card or card.board_id != board.id:
+        raise HTTPException(status_code=404, detail="Mystery card not found")
+    return card
 
 
 @router.post("/duplicate", response_model=schemas.BoardDetailOut)
@@ -191,6 +198,63 @@ def update_group(
     board_engine.update_group(db, board, group, payload.model_dump(exclude_unset=True))
     db.refresh(board)
     return schemas.BoardDetailOut.model_validate(board)
+
+
+@router.get("/mystery_cards", response_model=list[schemas.MysteryCardOut])
+def list_mystery_cards(key: str, deck_key: str | None = None, db: Session = Depends(get_db)):
+    board = board_engine.get_board_by_key(db, key)
+    if board is None:
+        raise HTTPException(status_code=404, detail="Board not found")
+    query = db.query(MysteryCard).filter(MysteryCard.board_id == board.id)
+    if deck_key:
+        query = query.filter(MysteryCard.deck_key == deck_key)
+    return [schemas.MysteryCardOut.model_validate(c) for c in query.all()]
+
+
+@router.post("/mystery_cards", response_model=schemas.MysteryCardOut)
+def create_mystery_card(
+    key: str,
+    payload: schemas.CreateMysteryCardRequest,
+    db: Session = Depends(get_db),
+    x_session_token: str | None = Header(default=None),
+):
+    user = accounts.require_user(db, x_session_token)
+    board = _get_owned_board(db, key, user)
+    card = MysteryCard(board_id=board.id, **payload.model_dump())
+    db.add(card)
+    db.commit()
+    db.refresh(card)
+    return schemas.MysteryCardOut.model_validate(card)
+
+
+@router.patch("/mystery_cards/{card_id}", response_model=schemas.MysteryCardOut)
+def update_mystery_card(
+    key: str,
+    card_id: str,
+    payload: schemas.UpdateMysteryCardRequest,
+    db: Session = Depends(get_db),
+    x_session_token: str | None = Header(default=None),
+):
+    user = accounts.require_user(db, x_session_token)
+    board = _get_owned_board(db, key, user)
+    card = _get_card(db, board, card_id)
+    for field, value in payload.model_dump(exclude_unset=True).items():
+        setattr(card, field, value)
+    db.commit()
+    db.refresh(card)
+    return schemas.MysteryCardOut.model_validate(card)
+
+
+@router.delete("/mystery_cards/{card_id}")
+def delete_mystery_card(
+    key: str, card_id: str, db: Session = Depends(get_db), x_session_token: str | None = Header(default=None)
+):
+    user = accounts.require_user(db, x_session_token)
+    board = _get_owned_board(db, key, user)
+    card = _get_card(db, board, card_id)
+    db.delete(card)
+    db.commit()
+    return {"status": "ok"}
 
 
 @router.post("/generate", response_model=schemas.BoardDetailOut)

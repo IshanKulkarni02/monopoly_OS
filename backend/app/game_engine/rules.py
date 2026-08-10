@@ -12,6 +12,7 @@ DEFAULT_RULESET: dict = {
     "pass_go_bonus": 200,
     "free_parking_pot": False,
     "event_system": "cards",  # cards | wheel
+    "mystery_deck_mode": "probability",  # probability (draw w/ replacement, weighted) | finite (no replacement until exhausted)
     "challenge_before_buy": {"enabled": False, "type": "coin_flip"},
     "inflation": {"enabled": False, "trigger": "on_pass_go", "rate": 0.0, "scope": ["rent", "tax"]},
 

@@ -63,6 +63,44 @@ def can_pay(denomination_counts: dict[str, int], amount: int) -> bool:
     return total_of(denomination_counts) >= amount
 
 
+def pay_to_bank(payer_counts: dict[str, int], amount: int, denominations: list[int]) -> dict[str, int]:
+    """The player's own notes are what constrain this side — tender the
+    fewest large notes that cover the amount, get change back. The bank is
+    modeled as having infinite supply (see currency.py's module docstring
+    reasoning applied game-wide: no `Game.bank_denominations`), so change
+    always succeeds here — this also backs player-to-player payments, which
+    treats every payment as bank-mediated rather than tracking whose
+    physical note goes to whom, a deliberate simplification."""
+    if not can_pay(payer_counts, amount):
+        raise CurrencyError("Payer does not have enough cash to cover this amount")
+    payer = {int(k): v for k, v in payer_counts.items()}
+    tendered = 0
+    used: dict[int, int] = {}
+    for note in sorted(payer.keys(), reverse=True):
+        if tendered >= amount:
+            break
+        available = payer[note]
+        needed = -(-(amount - tendered) // note)
+        take = min(available, needed)
+        if take:
+            used[note] = take
+            tendered += take * note
+    change_due = tendered - amount
+    change = make_change(change_due, denominations) if change_due else {}
+    for note, count in used.items():
+        payer[note] -= count
+    for note, count in change.items():
+        payer[note] = payer.get(note, 0) + count
+    return {str(k): v for k, v in payer.items() if v}
+
+
+def receive_from_bank(payee_counts: dict[str, int], amount: int, denominations: list[int]) -> dict[str, int]:
+    payee = {int(k): v for k, v in payee_counts.items()}
+    for note, count in make_change(amount, denominations).items():
+        payee[note] = payee.get(note, 0) + count
+    return {str(k): v for k, v in payee.items() if v}
+
+
 def apply_payment(
     payer_counts: dict[str, int], payee_counts: dict[str, int], amount: int, denominations: list[int]
 ) -> tuple[dict[str, int], dict[str, int]]:
