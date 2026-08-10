@@ -29,6 +29,7 @@ class PlayerOut(BaseModel):
     name: str
     is_host: bool
     is_banker: bool
+    is_bot: bool
     balance: int
     status: str
     jail_free_cards: int
@@ -135,3 +136,7 @@ class DrawEventRequest(BaseModel):
 class RollRequest(BaseModel):
     use_jail_free_card: bool = False
     pay_fine: bool = False
+
+
+class AddBotRequest(BaseModel):
+    name: str | None = Field(default=None, max_length=40)

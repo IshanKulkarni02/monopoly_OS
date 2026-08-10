@@ -22,19 +22,31 @@ function describe(entry: EventLogOut): string {
       return `Drew a get-out-of-jail-free card`
     case 'challenge_failed':
       return `Challenge failed for ${p.property_name} — no purchase`
+    case 'bot_added':
+      return `${p.name} (bot) joined the game`
+    case 'sent_to_jail':
+      return 'Sent to jail!'
+    case 'house_built': {
+      const houseCount = Number(p.houses)
+      const label = houseCount >= 5 ? 'a hotel' : `${houseCount} house${houseCount === 1 ? '' : 's'}`
+      return `Built on ${p.property_name} — now has ${label} (${formatMoney(Number(p.cost))})`
+    }
+    case 'house_sold':
+      return `Sold a house on ${p.property_name} for ${formatMoney(Number(p.refund))}`
     default:
       return entry.kind
   }
 }
 
 export function EventFeed({ entries, emptyLabel }: { entries: EventLogOut[]; emptyLabel: string }) {
-  if (entries.length === 0) {
+  const visible = entries.filter((e) => e.kind !== 'turn_ended')
+  if (visible.length === 0) {
     return <p className="text-sm font-medium text-ink-soft">{emptyLabel}</p>
   }
 
   return (
     <ul className="flex flex-col-reverse gap-1.5">
-      {entries.map((entry) => (
+      {visible.map((entry) => (
         <li key={entry.id} className="rounded border-2 border-ink bg-board-card px-3 py-2 text-sm">
           <span className="font-medium text-ink">{describe(entry)}</span>
           <span className="ml-2 text-xs font-medium text-ink-soft">

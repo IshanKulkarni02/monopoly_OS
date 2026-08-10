@@ -3,6 +3,7 @@ export interface PlayerOut {
   name: string
   is_host: boolean
   is_banker: boolean
+  is_bot: boolean
   balance: number
   status: 'active' | 'bankrupt' | 'left'
   jail_free_cards: number

@@ -230,4 +230,12 @@ export function sellHouse(code: string, playerId: string, playerToken: string, p
   })
 }
 
+export function addBot(code: string, hostToken: string, name?: string): Promise<GameStateOut> {
+  return request(`/api/games/${code}/bots`, {
+    method: 'POST',
+    headers: { 'x-host-token': hostToken },
+    body: JSON.stringify({ name: name || null }),
+  })
+}
+
 export { ApiError }

@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy.orm import Session
 
 from app import auth, schemas
+from app.bots import run_bots_until_human
 from app.connection_manager import manager
 from app.db import get_db
 from app.game_engine import turn_engine
@@ -58,4 +59,5 @@ async def end_turn(
         db.rollback()
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
+    await run_bots_until_human(db, game)
     return await _broadcast_state(db, game)
