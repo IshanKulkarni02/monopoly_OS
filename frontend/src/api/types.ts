@@ -5,6 +5,7 @@ export interface PlayerOut {
   is_banker: boolean
   is_bot: boolean
   balance: number
+  denominations: Record<string, number>
   status: 'active' | 'bankrupt' | 'left'
   jail_free_cards: number
   position: number
@@ -43,9 +44,56 @@ export interface TransactionOut {
   created_at: string
 }
 
+export type TileKind = 'go' | 'property' | 'mystery' | 'tax' | 'jail' | 'vacation' | 'go_to_jail' | 'custom'
+export type RentModel = 'fixed_table' | 'group_count_table' | 'dice_multiplier_table'
+
+export interface BoardGroupOut {
+  id: string
+  key: string
+  name: string
+  color: string
+  rent_multiplier: number | null
+}
+
+export interface BoardTileOut {
+  id: string
+  position: number
+  name: string
+  kind: TileKind
+  group_id: string | null
+  price: number | null
+  rent_model: RentModel
+  rent_table: number[]
+  upgrade_costs: number[]
+  mortgage_value: number | null
+  tax_config: Record<string, unknown>
+  mystery_deck_key: string
+  special_effects: unknown[]
+}
+
+export interface BoardSummaryOut {
+  id: string
+  key: string
+  name: string
+  description: string
+  size: number
+  is_preset: boolean
+}
+
+export interface BoardDetailOut extends BoardSummaryOut {
+  groups: BoardGroupOut[]
+  tiles: BoardTileOut[]
+}
+
 export type MoneyMode = 'banker_ledger' | 'cash_counter' | 'digital_transfer'
 export type EventSystem = 'cards' | 'wheel'
 export type PlayMode = 'irl_companion' | 'virtual'
+
+export interface CurrencyConfig {
+  symbol: string
+  denominations: number[]
+  track_denominations: boolean
+}
 
 export interface GameStateOut {
   id: string
@@ -55,6 +103,7 @@ export interface GameStateOut {
   money_mode: MoneyMode
   banker_mode: 'manual' | 'auto'
   play_mode: PlayMode
+  board: BoardDetailOut
   ruleset: {
     starting_cash: number
     pass_go_bonus: number
@@ -62,9 +111,16 @@ export interface GameStateOut {
     event_system: EventSystem
     challenge_before_buy: { enabled: boolean; type: string }
     inflation: { enabled: boolean; trigger: 'on_pass_go' | 'per_round'; rate: number; scope: string[] }
+    currency: CurrencyConfig
+    mortgage_percentage: number
+    group_rent_multiplier: number
+    jail_fine: number
+    jail_max_turns: number
+    [key: string]: unknown
   }
   inflation_multiplier: number
   round_number: number
+  free_parking_pot_amount: number
   turn_order: string[]
   current_turn_player_id: string | null
   players: PlayerOut[]

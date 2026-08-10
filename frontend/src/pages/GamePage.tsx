@@ -13,6 +13,7 @@ import { LandingPicker } from '../components/LandingPicker'
 import { VirtualPlayPanel } from '../components/VirtualPlayPanel'
 import { EventFeed } from '../components/EventFeed'
 import { formatMoney } from '../boardData'
+import { BoardProvider } from '../hooks/useBoard'
 import {
   joinGame,
   startGame,
@@ -32,6 +33,7 @@ import {
   buildHouse,
   sellHouse,
   addBot,
+  addPlayer,
   getPlayerLog,
 } from '../api/client'
 import type { DrawEventOutcome, EventLogOut, LandOutcome, RollOutcome } from '../api/types'
@@ -46,6 +48,7 @@ export function GamePage() {
   const [joinName, setJoinName] = useState('')
   const [joinError, setJoinError] = useState<string | null>(null)
   const [joinBusy, setJoinBusy] = useState(false)
+  const [addPlayerName, setAddPlayerName] = useState('')
   const [actionError, setActionError] = useState<string | null>(null)
   const [actionBusy, setActionBusy] = useState(false)
   const [purchaseMessage, setPurchaseMessage] = useState<string | null>(null)
@@ -160,6 +163,30 @@ export function GamePage() {
             onToggleBanker={(playerId, next) => guarded(() => setBanker(code, session.hostToken!, playerId, next))}
           />
         </div>
+        {me.is_host && (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault()
+              const trimmed = addPlayerName.trim()
+              if (!trimmed) return
+              guarded(() => addPlayer(code, session.hostToken!, trimmed)).then(() => setAddPlayerName(''))
+            }}
+            className="flex gap-2"
+          >
+            <input
+              placeholder="Add a player by name"
+              value={addPlayerName}
+              onChange={(e) => setAddPlayerName(e.target.value)}
+              className="w-full rounded border-2 border-ink bg-board-card p-2 text-sm text-ink placeholder:text-ink-soft focus:outline-none focus:ring-2 focus:ring-monopoly-red"
+            />
+            <button
+              disabled={actionBusy || !addPlayerName.trim()}
+              className="whitespace-nowrap rounded border-2 border-ink bg-board-card px-3 text-sm font-bold text-ink hover:bg-board disabled:opacity-50"
+            >
+              Add
+            </button>
+          </form>
+        )}
         {me.is_host && state.play_mode === 'virtual' && (
           <button
             disabled={actionBusy}
@@ -192,6 +219,7 @@ export function GamePage() {
   const showAdvanceRound = me.is_banker && state.ruleset.inflation.enabled && state.ruleset.inflation.trigger === 'per_round'
 
   return (
+    <BoardProvider tiles={state.board.tiles} groups={state.board.groups} currency={state.ruleset.currency}>
     <div className="mx-auto flex min-h-screen max-w-md flex-col pb-20">
       <header className="flex items-center justify-between border-b-4 border-ink bg-monopoly-red p-4 text-white">
         <div>
@@ -207,7 +235,7 @@ export function GamePage() {
         </div>
         <div className="text-right">
           <p className="text-xs font-medium text-white/80">Your balance</p>
-          <p className="font-mono text-xl font-bold text-white">{formatMoney(me.balance)}</p>
+          <p className="font-mono text-xl font-bold text-white">{formatMoney(me.balance, state.ruleset.currency.symbol)}</p>
           {me.jail_free_cards > 0 && <p className="text-xs font-medium text-white/80">{me.jail_free_cards}x jail-free card</p>}
         </div>
       </header>
@@ -343,6 +371,7 @@ export function GamePage() {
         <TabButton label="My log" active={tab === 'mylog'} onClick={() => setTab('mylog')} />
       </nav>
     </div>
+    </BoardProvider>
   )
 }
 

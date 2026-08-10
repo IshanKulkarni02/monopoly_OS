@@ -1,10 +1,8 @@
 import { useState } from 'react'
-import { CLASSIC_BOARD, formatMoney } from '../boardData'
+import { useBoard, useFormatMoney } from '../hooks/useBoard'
 import type { DrawEventOutcome, EventSystem } from '../api/types'
 
-const EVENT_SPACES = CLASSIC_BOARD.filter((s) => s.type === 'chance' || s.type === 'community_chest')
-
-function outcomeMessage(outcome: DrawEventOutcome): string {
+function outcomeMessage(outcome: DrawEventOutcome, formatMoney: (amount: number) => string): string {
   switch (outcome.kind) {
     case 'bank_pays':
       return `${outcome.text} Bank pays you ${formatMoney(outcome.amount)}.`
@@ -34,7 +32,10 @@ export function DrawEventPanel({
   lastOutcome: DrawEventOutcome | null
   onDraw: (spaceIndex: number) => void
 }) {
-  const [spaceIndex, setSpaceIndex] = useState(EVENT_SPACES[0]?.index ?? 7)
+  const formatMoney = useFormatMoney()
+  const { tiles } = useBoard()
+  const eventTiles = tiles.filter((t) => t.kind === 'mystery')
+  const [spaceIndex, setSpaceIndex] = useState(eventTiles[0]?.position ?? 0)
 
   return (
     <div className="flex flex-col gap-3 rounded border-2 border-ink bg-board-card p-3">
@@ -46,9 +47,9 @@ export function DrawEventPanel({
         onChange={(e) => setSpaceIndex(Number(e.target.value))}
         className="w-full rounded border-2 border-ink bg-board-card p-2 text-ink focus:outline-none focus:ring-2 focus:ring-monopoly-red"
       >
-        {EVENT_SPACES.map((s) => (
-          <option key={s.index} value={s.index}>
-            {s.name} (space {s.index})
+        {eventTiles.map((t) => (
+          <option key={t.position} value={t.position}>
+            {t.name} (space {t.position})
           </option>
         ))}
       </select>
@@ -59,7 +60,7 @@ export function DrawEventPanel({
       >
         {eventSystem === 'wheel' ? 'Spin' : 'Draw card'}
       </button>
-      {lastOutcome && <p className="text-sm font-semibold text-ink">{outcomeMessage(lastOutcome)}</p>}
+      {lastOutcome && <p className="text-sm font-semibold text-ink">{outcomeMessage(lastOutcome, formatMoney)}</p>}
     </div>
   )
 }

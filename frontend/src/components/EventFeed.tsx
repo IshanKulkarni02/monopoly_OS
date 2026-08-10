@@ -1,7 +1,7 @@
-import { formatMoney } from '../boardData'
+import { useFormatMoney } from '../hooks/useBoard'
 import type { EventLogOut } from '../api/types'
 
-function describe(entry: EventLogOut): string {
+function describe(entry: EventLogOut, formatMoney: (amount: number) => string): string {
   const p = entry.payload as Record<string, string | number | undefined>
   switch (entry.kind) {
     case 'transaction':
@@ -39,6 +39,7 @@ function describe(entry: EventLogOut): string {
 }
 
 export function EventFeed({ entries, emptyLabel }: { entries: EventLogOut[]; emptyLabel: string }) {
+  const formatMoney = useFormatMoney()
   const visible = entries.filter((e) => e.kind !== 'turn_ended')
   if (visible.length === 0) {
     return <p className="text-sm font-medium text-ink-soft">{emptyLabel}</p>
@@ -48,7 +49,7 @@ export function EventFeed({ entries, emptyLabel }: { entries: EventLogOut[]; emp
     <ul className="flex flex-col-reverse gap-1.5">
       {visible.map((entry) => (
         <li key={entry.id} className="rounded border-2 border-ink bg-board-card px-3 py-2 text-sm">
-          <span className="font-medium text-ink">{describe(entry)}</span>
+          <span className="font-medium text-ink">{describe(entry, formatMoney)}</span>
           <span className="ml-2 text-xs font-medium text-ink-soft">
             {new Date(entry.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
           </span>

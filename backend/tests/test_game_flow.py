@@ -42,6 +42,27 @@ def test_create_join_start_and_transact(client):
     assert r.status_code == 403
 
 
+def test_host_can_add_player(client):
+    data = client.post("/api/games", json={"host_name": "Alice"}).json()
+    code = data["game"]["code"]
+    host_token = data["host_token"]
+
+    r = client.post(f"/api/games/{code}/players", json={"name": "Carl"})
+    assert r.status_code == 403
+
+    r = client.post(f"/api/games/{code}/players", json={"name": "Carl"}, headers={"x-host-token": host_token})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["player_id"]
+    assert body["player_token"]
+    names = [p["name"] for p in body["game"]["players"]]
+    assert names == ["Alice", "Carl"]
+
+    client.post(f"/api/games/{code}/start", headers={"x-host-token": host_token})
+    r = client.post(f"/api/games/{code}/players", json={"name": "Dana"}, headers={"x-host-token": host_token})
+    assert r.status_code == 400
+
+
 def test_purchase_property_and_insufficient_funds(client):
     data = client.post("/api/games", json={"host_name": "Alice"}).json()
     code = data["game"]["code"]

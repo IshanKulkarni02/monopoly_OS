@@ -1,4 +1,4 @@
-import { formatMoney } from '../boardData'
+import { useFormatMoney } from '../hooks/useBoard'
 import type { PlayerOut } from '../api/types'
 
 export function PlayerList({
@@ -12,6 +12,7 @@ export function PlayerList({
   canManageBanker?: boolean
   onToggleBanker?: (playerId: string, next: boolean) => void
 }) {
+  const formatMoney = useFormatMoney()
   return (
     <ul className="flex flex-col gap-2">
       {players.map((p) => (

@@ -1,8 +1,8 @@
 import { useState } from 'react'
-import { CLASSIC_BOARD, formatMoney } from '../boardData'
+import { useBoard, useFormatMoney } from '../hooks/useBoard'
 import type { LandOutcome } from '../api/types'
 
-function outcomeMessage(outcome: LandOutcome): string {
+function outcomeMessage(outcome: LandOutcome, formatMoney: (amount: number) => string): string {
   switch (outcome.outcome) {
     case 'rent_paid':
       return `Paid ${formatMoney(outcome.amount ?? 0)} rent to ${outcome.paid_to}`
@@ -34,7 +34,9 @@ export function LandingPicker({
   busy: boolean
   lastOutcome: LandOutcome | null
 }) {
-  const [spaceIndex, setSpaceIndex] = useState(1)
+  const formatMoney = useFormatMoney()
+  const { tiles } = useBoard()
+  const [spaceIndex, setSpaceIndex] = useState(tiles[1]?.position ?? 0)
   const [diceRoll, setDiceRoll] = useState('')
 
   return (
@@ -45,8 +47,8 @@ export function LandingPicker({
         onChange={(e) => setSpaceIndex(Number(e.target.value))}
         className="w-full rounded border-2 border-ink bg-board-card p-2 text-ink focus:outline-none focus:ring-2 focus:ring-monopoly-red"
       >
-        {CLASSIC_BOARD.map((s) => (
-          <option key={s.index} value={s.index}>{s.name}</option>
+        {tiles.map((t) => (
+          <option key={t.position} value={t.position}>{t.name}</option>
         ))}
       </select>
       <input
@@ -63,7 +65,7 @@ export function LandingPicker({
       >
         Confirm landing
       </button>
-      {lastOutcome && <p className="text-sm font-semibold text-ink">{outcomeMessage(lastOutcome)}</p>}
+      {lastOutcome && <p className="text-sm font-semibold text-ink">{outcomeMessage(lastOutcome, formatMoney)}</p>}
     </div>
   )
 }

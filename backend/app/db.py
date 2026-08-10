@@ -28,5 +28,11 @@ def get_db():
 
 def init_db() -> None:
     from app import models  # noqa: F401  (ensure models are registered)
+    from app.game_engine.seed_boards import seed_all
 
     Base.metadata.create_all(bind=engine)
+    db = SessionLocal()
+    try:
+        seed_all(db)
+    finally:
+        db.close()

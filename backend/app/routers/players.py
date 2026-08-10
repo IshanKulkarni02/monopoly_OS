@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from app import auth, schemas
 from app.connection_manager import manager
 from app.db import get_db
-from app.game_engine import board_data
+from app.game_engine import board_engine
 from app.game_engine.events import cards, resolve, wheel
 from app.game_engine.money_modes import banker_ledger
 from app.models import EventLogEntry
@@ -53,16 +53,18 @@ async def draw_event(
     if game.play_mode == "virtual":
         raise HTTPException(status_code=400, detail="Virtual games draw cards automatically when you land on them")
 
-    space = board_data.space_by_index(payload.space_index)
-    if space["type"] not in ("chance", "community_chest"):
+    size = board_engine.board_size(db, game.board_id)
+    if not (0 <= payload.space_index < size):
+        raise HTTPException(status_code=400, detail=f"Invalid board position {payload.space_index} for this game's board")
+    tile = board_engine.tile_at(db, game.board_id, payload.space_index)
+    if tile.kind != "mystery":
         raise HTTPException(status_code=400, detail="That space doesn't draw a card or spin the wheel")
 
     event_system = game.ruleset_json.get("event_system", "cards")
     if event_system == "wheel":
         outcome = wheel.spin()
     else:
-        deck = cards.CHANCE_DECK if space["type"] == "chance" else cards.COMMUNITY_CHEST_DECK
-        outcome = cards.draw(deck)
+        outcome = cards.draw(cards.deck_for_key(tile.mystery_deck_key))
 
     try:
         result = resolve.apply_event_outcome(db, game, player=player, outcome=outcome)

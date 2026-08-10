@@ -7,6 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field
 class GameCreateRequest(BaseModel):
     host_name: str = Field(min_length=1, max_length=40)
     name: str = Field(default="Monopoly Night", max_length=60)
+    board_key: str | None = None
     starting_cash: int | None = Field(default=None, ge=0)
     banker_mode: Literal["manual", "auto"] = "manual"
     play_mode: Literal["irl_companion", "virtual"] = "irl_companion"
@@ -23,6 +24,10 @@ class JoinGameRequest(BaseModel):
     name: str = Field(min_length=1, max_length=40)
 
 
+class AddPlayerRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=40)
+
+
 class PlayerOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: str
@@ -31,6 +36,7 @@ class PlayerOut(BaseModel):
     is_banker: bool
     is_bot: bool
     balance: int
+    denominations: dict[str, int] = {}
     status: str
     jail_free_cards: int
     position: int
@@ -47,6 +53,47 @@ class PropertyOut(BaseModel):
     price: int
     houses: int
     mortgaged: bool
+
+
+class BoardGroupOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    key: str
+    name: str
+    color: str
+    rent_multiplier: float | None
+
+
+class BoardTileOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    position: int
+    name: str
+    kind: str
+    group_id: str | None
+    price: int | None
+    rent_model: str
+    rent_table: list[int]
+    upgrade_costs: list[int]
+    mortgage_value: int | None
+    tax_config: dict[str, Any]
+    mystery_deck_key: str
+    special_effects: list[Any]
+
+
+class BoardSummaryOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    key: str
+    name: str
+    description: str
+    size: int
+    is_preset: bool
+
+
+class BoardDetailOut(BoardSummaryOut):
+    groups: list[BoardGroupOut]
+    tiles: list[BoardTileOut]
 
 
 class TransactionOut(BaseModel):
@@ -80,9 +127,11 @@ class GameStateOut(BaseModel):
     money_mode: str
     banker_mode: str
     play_mode: str
+    board: BoardDetailOut
     ruleset: dict[str, Any]
     inflation_multiplier: float
     round_number: int
+    free_parking_pot_amount: int
     turn_order: list[str]
     current_turn_player_id: str | None
     players: list[PlayerOut]
@@ -113,7 +162,7 @@ class ManualTransactionRequest(BaseModel):
 
 class LandRequest(BaseModel):
     player_id: str
-    space_index: int = Field(ge=0, le=39)
+    space_index: int = Field(ge=0)
     dice_roll: int | None = Field(default=None, ge=2, le=12)
 
 
@@ -130,7 +179,7 @@ class TransferRequest(BaseModel):
 
 class DrawEventRequest(BaseModel):
     player_id: str
-    space_index: int = Field(ge=0, le=39)
+    space_index: int = Field(ge=0)
 
 
 class RollRequest(BaseModel):

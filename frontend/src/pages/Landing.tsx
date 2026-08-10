@@ -1,8 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { createGame, joinGame } from '../api/client'
+import { createGame, joinGame, listBoards } from '../api/client'
 import { saveSession } from '../hooks/useSession'
-import type { EventSystem, MoneyMode, PlayMode } from '../api/types'
+import type { BoardSummaryOut, EventSystem, MoneyMode, PlayMode } from '../api/types'
 
 const fieldClass =
   'w-full rounded border-2 border-ink bg-board-card p-3 text-ink placeholder:text-ink-soft focus:outline-none focus:ring-2 focus:ring-monopoly-red'
@@ -15,10 +15,12 @@ export function Landing() {
   const [name, setName] = useState('')
   const [code, setCode] = useState('')
   const [gameName, setGameName] = useState('Monopoly Night')
+  const [boards, setBoards] = useState<BoardSummaryOut[]>([])
+  const [boardKey, setBoardKey] = useState('')
   const [playMode, setPlayMode] = useState<PlayMode>('irl_companion')
   const [bankerMode, setBankerMode] = useState<'manual' | 'auto'>('manual')
   const [moneyMode, setMoneyMode] = useState<MoneyMode>('banker_ledger')
-  const [startingCash, setStartingCash] = useState('1500')
+  const [startingCash, setStartingCash] = useState('')
   const [showTwists, setShowTwists] = useState(false)
   const [eventSystem, setEventSystem] = useState<EventSystem>('cards')
   const [freeParkingPot, setFreeParkingPot] = useState(false)
@@ -29,6 +31,16 @@ export function Landing() {
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const navigate = useNavigate()
+
+  useEffect(() => {
+    listBoards()
+      .then((list) => {
+        setBoards(list)
+        const preferred = list.find((b) => b.key === 'current_game') ?? list[0]
+        if (preferred) setBoardKey(preferred.key)
+      })
+      .catch(() => {})
+  }, [])
 
   async function handleJoin(e: React.FormEvent) {
     e.preventDefault()
@@ -58,6 +70,7 @@ export function Landing() {
       const res = await createGame({
         hostName: name.trim(),
         name: gameName.trim(),
+        boardKey: boardKey || undefined,
         startingCash: Number(startingCash) || undefined,
         bankerMode,
         playMode,
@@ -134,6 +147,19 @@ export function Landing() {
             className={fieldClass}
           />
           <input placeholder="Game name" value={gameName} onChange={(e) => setGameName(e.target.value)} className={fieldClass} />
+          {boards.length > 0 && (
+            <div>
+              <label className={labelClass}>Board</label>
+              <select value={boardKey} onChange={(e) => setBoardKey(e.target.value)} className={fieldClass}>
+                {boards.map((b) => (
+                  <option key={b.key} value={b.key}>{b.name}</option>
+                ))}
+              </select>
+              {boards.find((b) => b.key === boardKey)?.description && (
+                <p className="mt-1 text-xs font-medium text-ink-soft">{boards.find((b) => b.key === boardKey)?.description}</p>
+              )}
+            </div>
+          )}
           <div>
             <label className={labelClass}>How are you playing?</label>
             <select value={playMode} onChange={(e) => setPlayMode(e.target.value as PlayMode)} className={fieldClass}>
@@ -144,7 +170,13 @@ export function Landing() {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className={labelClass}>Starting cash</label>
-              <input type="number" value={startingCash} onChange={(e) => setStartingCash(e.target.value)} className={fieldClass} />
+              <input
+                type="number"
+                placeholder="Board default"
+                value={startingCash}
+                onChange={(e) => setStartingCash(e.target.value)}
+                className={fieldClass}
+              />
             </div>
             {playMode === 'irl_companion' && (
               <div>

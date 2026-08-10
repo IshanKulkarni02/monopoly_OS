@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import { formatMoney, spaceByIndex } from '../boardData'
+import { tileAtPosition } from '../boardData'
+import { useBoard, useFormatMoney } from '../hooks/useBoard'
 import type { PlayerOut, PropertyOut, RollOutcome } from '../api/types'
 
-function landingMessage(outcome: RollOutcome): string | null {
+function landingMessage(outcome: RollOutcome, formatMoney: (amount: number) => string): string | null {
   const landing = outcome.landing
   if (!landing) return null
   let message: string
@@ -63,12 +64,14 @@ export function VirtualPlayPanel({
   onEndTurn: () => void
   onPurchase: (propertyId: string) => void
 }) {
+  const formatMoney = useFormatMoney()
+  const { tiles } = useBoard()
   const [jailChoice, setJailChoice] = useState<'roll' | 'card' | 'fine'>('roll')
   const me = players.find((p) => p.id === myPlayerId)!
   const isMyTurn = currentTurnPlayerId === myPlayerId
   const currentPlayer = players.find((p) => p.id === currentTurnPlayerId)
-  const mySpace = spaceByIndex(me.position)
-  const message = lastRoll ? landingMessage(lastRoll) : null
+  const mySpace = tileAtPosition(tiles, me.position)
+  const message = lastRoll ? landingMessage(lastRoll, formatMoney) : null
 
   // Re-check against live property state rather than trusting the frozen
   // roll snapshot, so the Buy button/message disappear the moment the
@@ -95,7 +98,7 @@ export function VirtualPlayPanel({
 
       <div className="rounded border-2 border-ink bg-board-card p-3">
         <p className="text-xs font-bold uppercase tracking-wide text-ink-soft">Your space</p>
-        <p className="font-display text-lg tracking-wide text-ink">{mySpace.name}</p>
+        <p className="font-display text-lg tracking-wide text-ink">{mySpace?.name ?? '…'}</p>
         {me.in_jail && <p className="mt-1 text-sm font-bold text-monopoly-red">In jail (attempt {me.jail_turns + 1} of 3)</p>}
       </div>
 
