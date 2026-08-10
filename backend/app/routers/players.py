@@ -4,6 +4,8 @@ from sqlalchemy.orm import Session
 from app import auth, schemas
 from app.connection_manager import manager
 from app.db import get_db
+from app.game_engine import board_data
+from app.game_engine.events import cards, resolve, wheel
 from app.game_engine.money_modes import banker_ledger
 from app.models import EventLogEntry
 from app.serializers import serialize_game_state
@@ -35,6 +37,39 @@ async def declare_landing(
     state = serialize_game_state(db, game)
     await manager.broadcast(game.code, {"type": "state", "game": state.model_dump(mode="json")})
     return {"outcome": outcome, "game": state}
+
+
+@router.post("/draw_event")
+async def draw_event(
+    code: str,
+    payload: schemas.DrawEventRequest,
+    db: Session = Depends(get_db),
+    x_player_token: str = Header(...),
+):
+    game = auth.get_game_or_404(db, code)
+    player = auth.require_player(db, game, payload.player_id, x_player_token)
+
+    space = board_data.space_by_index(payload.space_index)
+    if space["type"] not in ("chance", "community_chest"):
+        raise HTTPException(status_code=400, detail="That space doesn't draw a card or spin the wheel")
+
+    event_system = game.ruleset_json.get("event_system", "cards")
+    if event_system == "wheel":
+        outcome = wheel.spin()
+    else:
+        deck = cards.CHANCE_DECK if space["type"] == "chance" else cards.COMMUNITY_CHEST_DECK
+        outcome = cards.draw(deck)
+
+    try:
+        result = resolve.apply_event_outcome(db, game, player=player, outcome=outcome)
+        db.commit()
+    except banker_ledger.GameEngineError as exc:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    state = serialize_game_state(db, game)
+    await manager.broadcast(game.code, {"type": "state", "game": state.model_dump(mode="json")})
+    return {"outcome": result, "game": state}
 
 
 @router.get("/players/{player_id}/log", response_model=list[schemas.EventLogOut])

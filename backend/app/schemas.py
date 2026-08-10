@@ -9,6 +9,13 @@ class GameCreateRequest(BaseModel):
     name: str = Field(default="Monopoly Night", max_length=60)
     starting_cash: int | None = Field(default=None, ge=0)
     banker_mode: Literal["manual", "auto"] = "manual"
+    money_mode: Literal["banker_ledger", "cash_counter", "digital_transfer"] = "banker_ledger"
+    event_system: Literal["cards", "wheel"] = "cards"
+    free_parking_pot: bool = False
+    challenge_before_buy: bool = False
+    inflation_enabled: bool = False
+    inflation_trigger: Literal["on_pass_go", "per_round"] = "on_pass_go"
+    inflation_rate: float = Field(default=0.0, ge=0, le=1)
 
 
 class JoinGameRequest(BaseModel):
@@ -23,6 +30,7 @@ class PlayerOut(BaseModel):
     is_banker: bool
     balance: int
     status: str
+    jail_free_cards: int
 
 
 class PropertyOut(BaseModel):
@@ -46,6 +54,7 @@ class TransactionOut(BaseModel):
     reason: str
     created_by_player_id: str | None
     reversed: bool
+    status: str
     created_at: datetime
 
 
@@ -66,9 +75,12 @@ class GameStateOut(BaseModel):
     money_mode: str
     banker_mode: str
     ruleset: dict[str, Any]
+    inflation_multiplier: float
+    round_number: int
     players: list[PlayerOut]
     properties: list[PropertyOut]
     recent_log: list[EventLogOut]
+    pending_transfers: list[TransactionOut]
 
 
 class GameCreateResponse(BaseModel):
@@ -100,3 +112,14 @@ class LandRequest(BaseModel):
 class PromoteBankerRequest(BaseModel):
     player_id: str
     is_banker: bool = True
+
+
+class TransferRequest(BaseModel):
+    other_player_id: str
+    amount: int = Field(ge=1)
+    reason: str = Field(default="", max_length=120)
+
+
+class DrawEventRequest(BaseModel):
+    player_id: str
+    space_index: int = Field(ge=0, le=39)

@@ -6,6 +6,9 @@ import { JoinCodeBadge } from '../components/JoinCodeBadge'
 import { PlayerList } from '../components/PlayerList'
 import { PropertyBoard } from '../components/PropertyBoard'
 import { BankerPanel } from '../components/BankerPanel'
+import { CashCounterPanel } from '../components/CashCounterPanel'
+import { TransferPanel } from '../components/TransferPanel'
+import { DrawEventPanel } from '../components/DrawEventPanel'
 import { LandingPicker } from '../components/LandingPicker'
 import { EventFeed } from '../components/EventFeed'
 import { formatMoney } from '../boardData'
@@ -17,11 +20,17 @@ import {
   reverseTransaction,
   purchaseProperty,
   declareLanding,
+  drawEvent,
+  sendTransfer,
+  requestTransfer,
+  confirmTransfer,
+  declineTransfer,
+  advanceRound,
   getPlayerLog,
 } from '../api/client'
-import type { EventLogOut, LandOutcome } from '../api/types'
+import type { DrawEventOutcome, EventLogOut, LandOutcome } from '../api/types'
 
-type Tab = 'board' | 'banker' | 'land' | 'log' | 'mylog'
+type Tab = 'board' | 'banker' | 'transfer' | 'land' | 'draw' | 'log' | 'mylog'
 
 export function GamePage() {
   const { code = '' } = useParams()
@@ -33,13 +42,15 @@ export function GamePage() {
   const [joinBusy, setJoinBusy] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
   const [actionBusy, setActionBusy] = useState(false)
+  const [purchaseMessage, setPurchaseMessage] = useState<string | null>(null)
   const [lastOutcome, setLastOutcome] = useState<LandOutcome | null>(null)
+  const [lastDrawOutcome, setLastDrawOutcome] = useState<DrawEventOutcome | null>(null)
   const [myLog, setMyLog] = useState<EventLogOut[]>([])
 
   useEffect(() => {
     if (tab === 'mylog' && session && state) {
       getPlayerLog(code, session.playerId)
-        .then((log) => setMyLog(log as EventLogOut[]))
+        .then((log) => setMyLog(log))
         .catch(() => {})
     }
   }, [tab, session, code, state])
@@ -100,6 +111,26 @@ export function GamePage() {
     }
   }
 
+  async function handlePurchase(propertyId: string) {
+    setActionError(null)
+    setPurchaseMessage(null)
+    setActionBusy(true)
+    try {
+      const result = await purchaseProperty(code, me!.id, session!.playerToken, propertyId)
+      if (result.challenge) {
+        setPurchaseMessage(
+          result.purchased
+            ? `Challenge passed (rolled ${result.challenge.roll}) — property purchased!`
+            : `Challenge failed (rolled ${result.challenge.roll}) — no purchase this time.`,
+        )
+      }
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Something went wrong')
+    } finally {
+      setActionBusy(false)
+    }
+  }
+
   if (state.status === 'lobby') {
     return (
       <div className="mx-auto flex min-h-screen max-w-md flex-col gap-6 p-6">
@@ -129,6 +160,11 @@ export function GamePage() {
     )
   }
 
+  const myPendingRequests = state.pending_transfers.filter((t) => t.from_player_id === me.id).length
+  const showBankerTab = me.is_banker && (state.money_mode === 'banker_ledger' || state.money_mode === 'cash_counter')
+  const showTransferTab = state.money_mode === 'digital_transfer'
+  const showAdvanceRound = me.is_banker && state.ruleset.inflation.enabled && state.ruleset.inflation.trigger === 'per_round'
+
   return (
     <div className="mx-auto flex min-h-screen max-w-md flex-col pb-20">
       <header className="flex items-center justify-between border-b border-neutral-800 p-4">
@@ -137,24 +173,33 @@ export function GamePage() {
           <p className="text-xs text-neutral-500">
             Code {state.code} · {connected ? 'Live' : 'Reconnecting…'}
           </p>
+          {state.ruleset.inflation.enabled && (
+            <p className="text-xs text-amber-400">
+              Inflation {state.inflation_multiplier.toFixed(2)}x · Round {state.round_number}
+            </p>
+          )}
         </div>
         <div className="text-right">
           <p className="text-xs text-neutral-500">Your balance</p>
           <p className="font-mono text-xl text-emerald-400">{formatMoney(me.balance)}</p>
+          {me.jail_free_cards > 0 && <p className="text-xs text-neutral-500">{me.jail_free_cards}x jail-free card</p>}
         </div>
       </header>
 
       <main className="flex-1 p-4">
         {actionError && <p className="mb-3 text-sm text-red-400">{actionError}</p>}
         {tab === 'board' && (
-          <PropertyBoard
-            properties={state.properties}
-            players={state.players}
-            myPlayerId={me.id}
-            onPurchase={(propertyId) => guarded(() => purchaseProperty(code, me.id, session.playerToken, propertyId))}
-          />
+          <>
+            {purchaseMessage && <p className="mb-3 text-sm text-neutral-200">{purchaseMessage}</p>}
+            <PropertyBoard
+              properties={state.properties}
+              players={state.players}
+              myPlayerId={me.id}
+              onPurchase={handlePurchase}
+            />
+          </>
         )}
-        {tab === 'banker' && me.is_banker && (
+        {tab === 'banker' && showBankerTab && state.money_mode === 'banker_ledger' && (
           <BankerPanel
             players={state.players}
             recentLog={state.recent_log}
@@ -162,6 +207,45 @@ export function GamePage() {
             error={actionError}
             onLogTransaction={(input) => guarded(() => logTransaction(code, me.id, session.playerToken, input))}
             onReverse={(transactionId) => guarded(() => reverseTransaction(code, me.id, session.playerToken, transactionId))}
+          />
+        )}
+        {tab === 'banker' && showBankerTab && state.money_mode === 'cash_counter' && (
+          <CashCounterPanel
+            players={state.players}
+            busy={actionBusy}
+            error={actionError}
+            onAdjust={(playerId, delta) =>
+              guarded(() =>
+                logTransaction(code, me.id, session.playerToken, {
+                  fromPlayerId: delta < 0 ? playerId : null,
+                  toPlayerId: delta > 0 ? playerId : null,
+                  amount: Math.abs(delta),
+                  reason: 'cash count adjustment',
+                }),
+              )
+            }
+          />
+        )}
+        {tab === 'banker' && showBankerTab && showAdvanceRound && (
+          <button
+            disabled={actionBusy}
+            onClick={() => guarded(() => advanceRound(code, me.id, session.playerToken))}
+            className="mt-4 w-full rounded-lg border border-amber-700 py-2 text-sm font-medium text-amber-400 hover:bg-amber-950/40 disabled:opacity-50"
+          >
+            Advance to round {state.round_number + 1} (applies inflation)
+          </button>
+        )}
+        {tab === 'transfer' && showTransferTab && (
+          <TransferPanel
+            players={state.players}
+            myPlayerId={me.id}
+            pendingTransfers={state.pending_transfers}
+            busy={actionBusy}
+            error={actionError}
+            onSend={(input) => guarded(() => sendTransfer(code, me.id, session.playerToken, input))}
+            onRequest={(input) => guarded(() => requestTransfer(code, me.id, session.playerToken, input))}
+            onConfirm={(transactionId) => guarded(() => confirmTransfer(code, me.id, session.playerToken, transactionId))}
+            onDecline={(transactionId) => guarded(() => declineTransfer(code, me.id, session.playerToken, transactionId))}
           />
         )}
         {tab === 'land' && state.banker_mode === 'auto' && (
@@ -176,16 +260,37 @@ export function GamePage() {
             }
           />
         )}
+        {tab === 'draw' && (
+          <DrawEventPanel
+            eventSystem={state.ruleset.event_system}
+            busy={actionBusy}
+            lastOutcome={lastDrawOutcome}
+            onDraw={(spaceIndex) =>
+              guarded(async () => {
+                const res = await drawEvent(code, session.playerToken, { playerId: me.id, spaceIndex })
+                setLastDrawOutcome(res.outcome)
+              })
+            }
+          />
+        )}
         {tab === 'log' && <EventFeed entries={state.recent_log} emptyLabel="No activity yet" />}
         {tab === 'mylog' && <EventFeed entries={myLog} emptyLabel="Nothing has happened to you yet" />}
       </main>
 
-      <nav className="fixed bottom-0 left-0 right-0 mx-auto flex max-w-md border-t border-neutral-800 bg-neutral-950">
+      <nav className="fixed bottom-0 left-0 right-0 mx-auto flex max-w-md overflow-x-auto border-t border-neutral-800 bg-neutral-950">
         <TabButton label="Board" active={tab === 'board'} onClick={() => setTab('board')} />
-        {me.is_banker && <TabButton label="Banker" active={tab === 'banker'} onClick={() => setTab('banker')} />}
+        {showBankerTab && <TabButton label="Banker" active={tab === 'banker'} onClick={() => setTab('banker')} />}
+        {showTransferTab && (
+          <TabButton
+            label={`Transfer${myPendingRequests > 0 ? ` (${myPendingRequests})` : ''}`}
+            active={tab === 'transfer'}
+            onClick={() => setTab('transfer')}
+          />
+        )}
         {state.banker_mode === 'auto' && (
           <TabButton label="I landed…" active={tab === 'land'} onClick={() => setTab('land')} />
         )}
+        <TabButton label={state.ruleset.event_system === 'wheel' ? 'Wheel' : 'Cards'} active={tab === 'draw'} onClick={() => setTab('draw')} />
         <TabButton label="Log" active={tab === 'log'} onClick={() => setTab('log')} />
         <TabButton label="My log" active={tab === 'mylog'} onClick={() => setTab('mylog')} />
       </nav>
@@ -195,7 +300,7 @@ export function GamePage() {
 
 function TabButton({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
   return (
-    <button onClick={onClick} className={`flex-1 py-3 text-xs font-medium ${active ? 'text-emerald-400' : 'text-neutral-500'}`}>
+    <button onClick={onClick} className={`flex-1 whitespace-nowrap px-2 py-3 text-xs font-medium ${active ? 'text-emerald-400' : 'text-neutral-500'}`}>
       {label}
     </button>
   )

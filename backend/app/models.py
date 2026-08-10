@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String
+from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
@@ -32,6 +32,8 @@ class Game(Base):
     ruleset_json: Mapped[dict] = mapped_column(JSON, default=dict)
     host_player_id: Mapped[str | None] = mapped_column(String, nullable=True)
     host_token: Mapped[str] = mapped_column(String, default=_token)
+    inflation_multiplier: Mapped[float] = mapped_column(Float, default=1.0)
+    round_number: Mapped[int] = mapped_column(Integer, default=1)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     players: Mapped[list["Player"]] = relationship(back_populates="game", cascade="all, delete-orphan")
@@ -51,6 +53,7 @@ class Player(Base):
     is_banker: Mapped[bool] = mapped_column(Boolean, default=False)
     balance: Mapped[int] = mapped_column(Integer, default=1500)
     status: Mapped[str] = mapped_column(String, default="active")  # active | bankrupt | left
+    jail_free_cards: Mapped[int] = mapped_column(Integer, default=0)
     joined_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     game: Mapped["Game"] = relationship(back_populates="players")
@@ -84,6 +87,7 @@ class Transaction(Base):
     reason: Mapped[str] = mapped_column(String, default="")
     created_by_player_id: Mapped[str | None] = mapped_column(ForeignKey("players.id"), nullable=True)
     reversed: Mapped[bool] = mapped_column(Boolean, default=False)
+    status: Mapped[str] = mapped_column(String, default="confirmed")  # pending | confirmed | declined
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     game: Mapped["Game"] = relationship(back_populates="transactions")
