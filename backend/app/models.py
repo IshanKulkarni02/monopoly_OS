@@ -54,6 +54,7 @@ class Player(Base):
     token: Mapped[str] = mapped_column(String, default=_token)
     is_host: Mapped[bool] = mapped_column(Boolean, default=False)
     is_banker: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_bot: Mapped[bool] = mapped_column(Boolean, default=False)
     balance: Mapped[int] = mapped_column(Integer, default=1500)
     status: Mapped[str] = mapped_column(String, default="active")  # active | bankrupt | left
     jail_free_cards: Mapped[int] = mapped_column(Integer, default=0)

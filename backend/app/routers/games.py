@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy.orm import Session
 
 from app import auth, schemas
+from app.bots import run_bots_until_human
 from app.connection_manager import manager
 from app.db import get_db
 from app.game_engine import inflation, state as game_state
@@ -76,6 +77,7 @@ async def start_game(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
+    await run_bots_until_human(db, game)
     return await _broadcast_state(db, game)
 
 
@@ -93,6 +95,23 @@ async def set_banker(
         raise HTTPException(status_code=404, detail="Player not found")
     player.is_banker = payload.is_banker
     db.commit()
+
+    return await _broadcast_state(db, game)
+
+
+@router.post("/{code}/bots", response_model=schemas.GameStateOut)
+async def add_bot(
+    code: str,
+    payload: schemas.AddBotRequest,
+    db: Session = Depends(get_db),
+    x_host_token: str | None = Header(default=None),
+):
+    game = auth.get_game_or_404(db, code)
+    auth.require_host(game, x_host_token)
+    try:
+        game_state.add_bot(db, game, name=payload.name)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     return await _broadcast_state(db, game)
 

@@ -31,6 +31,7 @@ import {
   endTurn,
   buildHouse,
   sellHouse,
+  addBot,
   getPlayerLog,
 } from '../api/client'
 import type { DrawEventOutcome, EventLogOut, LandOutcome, RollOutcome } from '../api/types'
@@ -159,6 +160,15 @@ export function GamePage() {
             onToggleBanker={(playerId, next) => guarded(() => setBanker(code, session.hostToken!, playerId, next))}
           />
         </div>
+        {me.is_host && state.play_mode === 'virtual' && (
+          <button
+            disabled={actionBusy}
+            onClick={() => guarded(() => addBot(code, session.hostToken!))}
+            className="rounded border-2 border-ink bg-board-card py-2 text-sm font-bold text-ink hover:bg-board disabled:opacity-50"
+          >
+            🤖 Add a bot player
+          </button>
+        )}
         {me.is_host && (
           <button
             disabled={actionBusy || state.players.length < 2}

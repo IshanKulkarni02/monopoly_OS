@@ -57,6 +57,27 @@ def join_game(db: Session, game: Game, *, name: str) -> Player:
     return player
 
 
+def add_bot(db: Session, game: Game, *, name: str | None = None) -> Player:
+    if game.status != "lobby":
+        raise ValueError("Can't add a bot after the game has started")
+    if game.play_mode != "virtual":
+        raise ValueError("Bots only play in virtual games — there's no physical board for them to sit at")
+
+    bot_number = sum(1 for p in game.players if p.is_bot) + 1
+    bot = Player(
+        game_id=game.id,
+        name=name or f"Bot {bot_number}",
+        is_bot=True,
+        balance=game.ruleset_json["starting_cash"],
+    )
+    db.add(bot)
+    db.flush()
+    logs.write_event(db, game_id=game.id, kind="bot_added", player_ids=[bot.id], payload={"name": bot.name})
+    db.commit()
+    db.refresh(bot)
+    return bot
+
+
 def start_game(db: Session, game: Game) -> Game:
     if game.status != "lobby":
         raise ValueError("Game already started")
