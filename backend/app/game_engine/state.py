@@ -4,11 +4,13 @@ import string
 from sqlalchemy.orm import Session
 
 from app import logs
-from app.game_engine import board_data, turn_engine
+from app.game_engine import board_engine, turn_engine
 from app.game_engine.rules import build_ruleset
 from app.models import Game, Player, Property
 
 _CODE_ALPHABET = "".join(c for c in string.ascii_uppercase + string.digits if c not in "0O1I")
+
+DEFAULT_BOARD_KEY = "classic"
 
 
 def generate_join_code(db: Session, length: int = 5) -> str:
@@ -18,11 +20,26 @@ def generate_join_code(db: Session, length: int = 5) -> str:
             return code
 
 
-def create_game(db: Session, *, host_name: str, name: str = "Monopoly Night", ruleset_overrides: dict | None = None) -> tuple[Game, Player]:
+def create_game(
+    db: Session,
+    *,
+    host_name: str,
+    name: str = "Monopoly Night",
+    ruleset_overrides: dict | None = None,
+    board_key: str | None = None,
+) -> tuple[Game, Player]:
+    board = board_engine.get_board_by_key(db, board_key or DEFAULT_BOARD_KEY)
+    if board is None:
+        raise ValueError(f"Unknown board '{board_key or DEFAULT_BOARD_KEY}'")
+
+    board_ruleset = build_ruleset(board.default_ruleset_overrides)
+    ruleset_json = build_ruleset(ruleset_overrides, base=board_ruleset)
+
     game = Game(
         code=generate_join_code(db),
         name=name,
-        ruleset_json=build_ruleset(ruleset_overrides),
+        board_id=board.id,
+        ruleset_json=ruleset_json,
     )
     db.add(game)
     db.flush()
@@ -38,7 +55,10 @@ def create_game(db: Session, *, host_name: str, name: str = "Monopoly Night", ru
     db.flush()
 
     game.host_player_id = host.id
-    logs.write_event(db, game_id=game.id, kind="game_created", player_ids=[host.id], payload={"host_name": host_name})
+    logs.write_event(
+        db, game_id=game.id, kind="game_created", player_ids=[host.id],
+        payload={"host_name": host_name, "board_key": board.key},
+    )
     db.commit()
     db.refresh(game)
     db.refresh(host)
@@ -84,8 +104,8 @@ def start_game(db: Session, game: Game) -> Game:
     if len(game.players) < 2:
         raise ValueError("Need at least 2 players to start")
 
-    for space in board_data.purchasable_spaces():
-        db.add(Property(game_id=game.id, space_index=space["index"], name=space["name"], price=space["price"]))
+    for tile in board_engine.purchasable_tiles(db, game.board_id):
+        db.add(Property(game_id=game.id, space_index=tile.position, name=tile.name, price=tile.price or 0))
 
     if game.play_mode == "virtual":
         turn_engine.start_turn_order(game, game.players)

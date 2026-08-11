@@ -1,4 +1,5 @@
 import type {
+  BoardSummaryOut,
   DrawEventOutcome,
   EventLogOut,
   EventSystem,
@@ -29,6 +30,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 export function createGame(input: {
   hostName: string
   name?: string
+  boardKey?: string
   startingCash?: number
   bankerMode: 'manual' | 'auto'
   playMode: PlayMode
@@ -45,6 +47,7 @@ export function createGame(input: {
     body: JSON.stringify({
       host_name: input.hostName,
       name: input.name || 'Monopoly Night',
+      board_key: input.boardKey || null,
       starting_cash: input.startingCash,
       banker_mode: input.bankerMode,
       play_mode: input.playMode,
@@ -59,8 +62,20 @@ export function createGame(input: {
   })
 }
 
+export function listBoards(): Promise<BoardSummaryOut[]> {
+  return request('/api/boards')
+}
+
 export function joinGame(code: string, name: string): Promise<JoinGameResponse> {
   return request(`/api/games/${code}/join`, { method: 'POST', body: JSON.stringify({ name }) })
+}
+
+export function addPlayer(code: string, hostToken: string, name: string): Promise<JoinGameResponse> {
+  return request(`/api/games/${code}/players`, {
+    method: 'POST',
+    headers: { 'x-host-token': hostToken },
+    body: JSON.stringify({ name }),
+  })
 }
 
 export function getGame(code: string): Promise<GameStateOut> {

@@ -13,7 +13,7 @@ import random
 from sqlalchemy.orm import Session
 
 from app import logs
-from app.game_engine import board_data
+from app.game_engine import board_engine
 from app.game_engine.events import cards, resolve, wheel
 from app.game_engine.money_modes.banker_ledger import (
     GameEngineError,
@@ -63,6 +63,8 @@ def roll_dice(
     pay_fine: bool = False,
 ) -> dict:
     require_current_player(game, player)
+    jail_fine = game.ruleset_json.get("jail_fine", 50)
+    jail_max_turns = game.ruleset_json.get("jail_max_turns", 3)
 
     if player.in_jail:
         if use_jail_free_card and player.jail_free_cards > 0:
@@ -71,8 +73,8 @@ def roll_dice(
             player.jail_turns = 0
         elif pay_fine:
             apply_transaction(
-                db, game, from_player=player, to_player=None, amount=board_data.JAIL_FINE,
-                reason="jail fine", created_by_player_id=player.id,
+                db, game, from_player=player, to_player=None, amount=jail_fine,
+                reason="jail fine", created_by_player_id=player.id, feeds_free_parking_pot=True,
             )
             player.in_jail = False
             player.jail_turns = 0
@@ -86,10 +88,11 @@ def roll_dice(
             player.jail_turns = 0
         else:
             player.jail_turns += 1
-            if player.jail_turns >= 3:
+            if player.jail_turns >= jail_max_turns:
                 apply_transaction(
-                    db, game, from_player=player, to_player=None, amount=board_data.JAIL_FINE,
-                    reason="jail fine (released after 3 tries)", created_by_player_id=player.id,
+                    db, game, from_player=player, to_player=None, amount=jail_fine,
+                    reason=f"jail fine (released after {jail_max_turns} tries)", created_by_player_id=player.id,
+                    feeds_free_parking_pot=True,
                 )
                 player.in_jail = False
                 player.jail_turns = 0
@@ -97,10 +100,11 @@ def roll_dice(
                 end_turn(db, game, player=player)
                 return {"outcome": "stayed_in_jail", "dice": [die1, die2]}
 
+    board_size = board_engine.board_size(db, game.board_id)
     old_position = player.position
     total = die1 + die2
-    new_position = (old_position + total) % board_data.BOARD_SIZE
-    passed_go = old_position + total >= board_data.BOARD_SIZE
+    new_position = (old_position + total) % board_size
+    passed_go = old_position + total >= board_size
     player.position = new_position
 
     # `apply_auto_banker_landing`'s own "go" branch covers landing exactly on
@@ -110,15 +114,15 @@ def roll_dice(
 
     landing = apply_auto_banker_landing(db, game, player=player, space_index=new_position, dice_roll=total)
 
-    # A virtual board has no physical Chance/Community Chest deck to draw
-    # from by hand, so resolve it automatically as part of the landing.
-    if landing.get("space_type") in ("chance", "community_chest"):
+    # A virtual board has no physical Mystery deck to draw from by hand, so
+    # resolve it automatically as part of the landing.
+    if landing.get("space_type") == "mystery":
+        tile = board_engine.tile_at(db, game.board_id, new_position)
         event_system = game.ruleset_json.get("event_system", "cards")
         if event_system == "wheel":
             outcome = wheel.spin()
         else:
-            deck = cards.CHANCE_DECK if landing["space_type"] == "chance" else cards.COMMUNITY_CHEST_DECK
-            outcome = cards.draw(deck)
+            outcome = cards.draw(cards.deck_for_key(tile.mystery_deck_key))
         landing = {**landing, "event": resolve.apply_event_outcome(db, game, player=player, outcome=outcome)}
 
     return {

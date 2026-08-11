@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { formatMoney } from '../boardData'
+import { useFormatMoney } from '../hooks/useBoard'
 import type { PlayerOut } from '../api/types'
 
 export function CashCounterPanel({
@@ -13,6 +13,7 @@ export function CashCounterPanel({
   error: string | null
   onAdjust: (playerId: string, delta: number) => void
 }) {
+  const formatMoney = useFormatMoney()
   const [amounts, setAmounts] = useState<Record<string, string>>({})
 
   return (

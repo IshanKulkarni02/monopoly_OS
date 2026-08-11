@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { formatMoney } from '../boardData'
+import { useFormatMoney } from '../hooks/useBoard'
 import type { EventLogOut, PlayerOut } from '../api/types'
 
 const fieldClass = 'w-full rounded border-2 border-ink bg-board-card p-2 text-ink focus:outline-none focus:ring-2 focus:ring-monopoly-red'
@@ -19,6 +19,7 @@ export function BankerPanel({
   onLogTransaction: (input: { fromPlayerId: string | null; toPlayerId: string | null; amount: number; reason: string }) => void
   onReverse: (transactionId: string) => void
 }) {
+  const formatMoney = useFormatMoney()
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
   const [amount, setAmount] = useState('')

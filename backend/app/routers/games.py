@@ -32,9 +32,12 @@ def create_game(payload: schemas.GameCreateRequest, db: Session = Depends(get_db
         "rate": payload.inflation_rate,
     }
 
-    game, host = game_state.create_game(
-        db, host_name=payload.host_name, name=payload.name, ruleset_overrides=overrides
-    )
+    try:
+        game, host = game_state.create_game(
+            db, host_name=payload.host_name, name=payload.name, ruleset_overrides=overrides, board_key=payload.board_key
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     game.banker_mode = payload.banker_mode
     game.money_mode = payload.money_mode
     game.play_mode = payload.play_mode
@@ -57,6 +60,24 @@ def get_game(code: str, db: Session = Depends(get_db)):
 @router.post("/{code}/join", response_model=schemas.JoinGameResponse)
 async def join_game(code: str, payload: schemas.JoinGameRequest, db: Session = Depends(get_db)):
     game = auth.get_game_or_404(db, code)
+    try:
+        player = game_state.join_game(db, game, name=payload.name)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    state = await _broadcast_state(db, game)
+    return schemas.JoinGameResponse(game=state, player_id=player.id, player_token=player.token)
+
+
+@router.post("/{code}/players", response_model=schemas.JoinGameResponse)
+async def add_player(
+    code: str,
+    payload: schemas.AddPlayerRequest,
+    db: Session = Depends(get_db),
+    x_host_token: str | None = Header(default=None),
+):
+    game = auth.get_game_or_404(db, code)
+    auth.require_host(game, x_host_token)
     try:
         player = game_state.join_game(db, game, name=payload.name)
     except ValueError as exc:

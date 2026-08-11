@@ -18,7 +18,8 @@ def apply_event_outcome(db: Session, game: Game, *, player: Player, outcome: Eve
 
     elif outcome.kind == "pay_bank":
         txn = apply_transaction(
-            db, game, from_player=player, to_player=None, amount=outcome.amount, reason=outcome.text, created_by_player_id=player.id
+            db, game, from_player=player, to_player=None, amount=outcome.amount, reason=outcome.text,
+            created_by_player_id=player.id, feeds_free_parking_pot=True,
         )
         result["transaction_ids"] = [txn.id]
 

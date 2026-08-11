@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { formatMoney } from '../boardData'
+import { useFormatMoney } from '../hooks/useBoard'
 import type { PlayerOut, TransactionOut } from '../api/types'
 
 const fieldClass = 'w-full rounded border-2 border-ink bg-board-card p-2 text-ink focus:outline-none focus:ring-2 focus:ring-monopoly-red'
@@ -25,6 +25,7 @@ export function TransferPanel({
   onConfirm: (transactionId: string) => void
   onDecline: (transactionId: string) => void
 }) {
+  const formatMoney = useFormatMoney()
   const others = players.filter((p) => p.id !== myPlayerId)
   const [mode, setMode] = useState<'send' | 'request'>('send')
   const [otherPlayerId, setOtherPlayerId] = useState(others[0]?.id ?? '')

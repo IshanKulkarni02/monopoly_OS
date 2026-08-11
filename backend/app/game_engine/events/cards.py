@@ -1,7 +1,14 @@
-"""Classic-flavor Chance / Community Chest decks (original wording — not a
-reproduction of any published card text). Drawn with replacement rather than
-tracking a shuffled/discard pile, which keeps this stateless and good enough
-for a party game."""
+"""Mystery-tile decks (original wording — not a reproduction of any
+published card text). Drawn with replacement rather than tracking a
+shuffled/discard pile, which keeps this stateless and good enough for a
+party game.
+
+A board's mystery tiles each carry a `mystery_deck_key`; boards that want a
+classic Chance/Community-Chest split use `"chance"`/`"community_chest"`,
+boards with a single unified deck (e.g. the current-game preset) use
+`"mystery"`. Unknown keys fall back to `MYSTERY_DECK` rather than erroring,
+so a hand-edited board with a typo'd key still draws something sensible.
+"""
 
 import random
 
@@ -29,6 +36,27 @@ COMMUNITY_CHEST_DECK: list[EventOutcome] = [
     EventOutcome("jail_free", 0, "A lucky coupon keeps you out of jail."),
     EventOutcome("bank_pays", 75, "A lucky break pays off."),
 ]
+
+MYSTERY_DECK: list[EventOutcome] = [
+    EventOutcome("bank_pays", 100, "A festival bonus lands in your account."),
+    EventOutcome("bank_pays", 250, "A lucky investment pays off big."),
+    EventOutcome("pay_bank", 150, "An unexpected repair bill arrives."),
+    EventOutcome("pay_bank", 80, "You cover a shared expense."),
+    EventOutcome("pay_each_player", 40, "You treat the whole table."),
+    EventOutcome("collect_each_player", 40, "Everyone chips in for your birthday."),
+    EventOutcome("jail_free", 0, "You find a get-out-of-jail-free voucher."),
+    EventOutcome("pass_go", 0, "A shortcut sends you straight back to GO."),
+]
+
+DECKS_BY_KEY: dict[str, list[EventOutcome]] = {
+    "chance": CHANCE_DECK,
+    "community_chest": COMMUNITY_CHEST_DECK,
+    "mystery": MYSTERY_DECK,
+}
+
+
+def deck_for_key(key: str) -> list[EventOutcome]:
+    return DECKS_BY_KEY.get(key, MYSTERY_DECK)
 
 
 def draw(deck: list[EventOutcome]) -> EventOutcome:
