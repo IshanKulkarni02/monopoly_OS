@@ -3,8 +3,8 @@ import asyncio
 from sqlalchemy.orm import Session
 
 from app.connection_manager import manager
-from app.game_engine import bot_ai
-from app.game_engine.money_modes.banker_ledger import GameEngineError
+from app.game_engine import bankruptcy, bot_ai
+from app.game_engine.money_modes.banker_ledger import GameEngineError, InsufficientFundsError
 from app.game_engine.turn_engine import end_turn
 from app.models import Game, Player
 from app.serializers import serialize_game_state
@@ -25,10 +25,22 @@ async def run_bots_until_human(db: Session, game: Game) -> None:
         try:
             bot_ai.play_bot_turn(db, game, player=current)
             db.commit()
+        except InsufficientFundsError as exc:
+            # A bot that can't cover a mandatory payment (rent/tax/fine)
+            # goes bankrupt to whoever it owed, exactly like a human could
+            # choose to — see `bankruptcy.py`. This replaces the old
+            # force-end-turn stopgap, which just left an insolvent bot
+            # stuck forever instead of actually resolving the game.
+            db.rollback()
+            current = db.get(Player, current.id)
+            creditor = db.get(Player, exc.creditor_player_id) if exc.creditor_player_id else None
+            try:
+                bankruptcy.declare_bankruptcy(db, game, player=current, creditor=creditor)
+                db.commit()
+            except GameEngineError:
+                db.rollback()
+                return
         except GameEngineError:
-            # A bot that can't afford what it owes has nowhere to go until
-            # bankruptcy handling exists — force its turn to end rather than
-            # freeze the game for everyone else.
             db.rollback()
             try:
                 end_turn(db, game, player=current)

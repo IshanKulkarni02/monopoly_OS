@@ -29,6 +29,7 @@ DEFAULT_RULESET: dict = {
     "turn_order_mode": "highest_roll_first",  # highest_roll_first | entry_order
 
     "auction_enabled": False,
+    "auction_min_increment": 10,
     "trading_enabled": True,
     "bankruptcy_rule": "liquidate_then_eliminate",
     "win_condition": {"type": "last_standing"},

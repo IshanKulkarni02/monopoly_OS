@@ -13,6 +13,8 @@ import { DrawEventPanel } from '../components/DrawEventPanel'
 import { LandingPicker } from '../components/LandingPicker'
 import { VirtualPlayPanel } from '../components/VirtualPlayPanel'
 import { IrlLivePanel } from '../components/IrlLivePanel'
+import { AuctionPanel } from '../components/AuctionPanel'
+import { TradePanel } from '../components/TradePanel'
 import { EventFeed } from '../components/EventFeed'
 import { formatMoney } from '../boardData'
 import { BoardProvider } from '../hooks/useBoard'
@@ -40,10 +42,19 @@ import {
   addPlayer,
   getPlayerLog,
   saveBoardTemplate,
+  startAuction,
+  bidOnAuction,
+  passAuction,
+  cancelAuction,
+  proposeTrade,
+  acceptTrade,
+  declineTrade,
+  cancelTrade,
+  declareBankruptcy,
 } from '../api/client'
-import type { DrawEventOutcome, EventLogOut, LandOutcome, RollOutcome } from '../api/types'
+import type { AuctionState, DrawEventOutcome, EventLogOut, LandOutcome, RollOutcome } from '../api/types'
 
-type Tab = 'board' | 'banker' | 'transfer' | 'land' | 'draw' | 'play' | 'log' | 'mylog'
+type Tab = 'board' | 'banker' | 'transfer' | 'land' | 'draw' | 'play' | 'trade' | 'log' | 'mylog'
 
 export function GamePage() {
   const { code = '' } = useParams()
@@ -228,6 +239,9 @@ export function GamePage() {
   const showTransferTab = state.money_mode === 'digital_transfer'
   const showLandTab = !isVirtual && state.banker_mode === 'auto'
   const showAdvanceRound = me.is_banker && state.ruleset.inflation.enabled && state.ruleset.inflation.trigger === 'per_round'
+  const activeAuction = state.active_auction.property_id ? (state.active_auction as AuctionState) : null
+  const auctionActive = activeAuction !== null
+  const myPendingTrades = state.pending_trades.filter((t) => t.proposer_id === me.id || t.recipient_id === me.id).length
 
   return (
     <BoardProvider tiles={state.board.tiles} groups={state.board.groups} currency={state.ruleset.currency}>
@@ -253,6 +267,19 @@ export function GamePage() {
 
       <main className="flex-1 p-4">
         {actionError && <p className="mb-3 text-sm font-semibold text-monopoly-red">{actionError}</p>}
+        {activeAuction && (
+          <AuctionPanel
+            auction={activeAuction}
+            players={state.players}
+            myPlayerId={me.id}
+            isHost={me.is_host}
+            minIncrement={state.ruleset.auction_min_increment}
+            busy={actionBusy}
+            onBid={(amount) => guarded(() => bidOnAuction(code, me.id, session.playerToken, amount))}
+            onPass={() => guarded(() => passAuction(code, me.id, session.playerToken))}
+            onCancel={() => guarded(() => cancelAuction(code, session.hostToken!))}
+          />
+        )}
         {tab === 'play' && isVirtual && (
           <VirtualPlayPanel
             players={state.players}
@@ -342,6 +369,9 @@ export function GamePage() {
               onPurchase={handlePurchase}
               mortgagePercentage={state.ruleset.mortgage_percentage}
               mortgageInterest={state.ruleset.mortgage_interest}
+              auctionEnabled={state.ruleset.auction_enabled}
+              auctionActive={auctionActive}
+              onStartAuction={(propertyId) => guarded(() => startAuction(code, me.id, session.playerToken, propertyId))}
               onBuildHouse={(propertyId) => guarded(() => buildHouse(code, me.id, session.playerToken, propertyId))}
               onSellHouse={(propertyId) => guarded(() => sellHouse(code, me.id, session.playerToken, propertyId))}
               onMortgage={(propertyId) => guarded(() => mortgageProperty(code, me.id, session.playerToken, propertyId))}
@@ -423,6 +453,21 @@ export function GamePage() {
             }
           />
         )}
+        {tab === 'trade' && (
+          <TradePanel
+            players={state.players}
+            properties={state.properties}
+            myPlayerId={me.id}
+            pendingTrades={state.pending_trades}
+            busy={actionBusy}
+            error={actionError}
+            onPropose={(input) => guarded(() => proposeTrade(code, me.id, session.playerToken, input))}
+            onAccept={(tradeId) => guarded(() => acceptTrade(code, me.id, session.playerToken, tradeId))}
+            onDecline={(tradeId) => guarded(() => declineTrade(code, me.id, session.playerToken, tradeId))}
+            onCancel={(tradeId) => guarded(() => cancelTrade(code, me.id, session.playerToken, tradeId))}
+            onDeclareBankruptcy={(creditorPlayerId) => guarded(() => declareBankruptcy(code, me.id, session.playerToken, creditorPlayerId))}
+          />
+        )}
         {tab === 'log' && <EventFeed entries={state.recent_log} emptyLabel="No activity yet" />}
         {tab === 'mylog' && <EventFeed entries={myLog} emptyLabel="Nothing has happened to you yet" />}
       </main>
@@ -431,6 +476,11 @@ export function GamePage() {
         {(isVirtual || showIrlLiveTab) && <TabButton label="Play" active={tab === 'play'} onClick={() => setTab('play')} />}
         <TabButton label="Board" active={tab === 'board'} onClick={() => setTab('board')} />
         {showBankerTab && <TabButton label="Banker" active={tab === 'banker'} onClick={() => setTab('banker')} />}
+        <TabButton
+          label={`Trade${myPendingTrades > 0 ? ` (${myPendingTrades})` : ''}`}
+          active={tab === 'trade'}
+          onClick={() => setTab('trade')}
+        />
         {showTransferTab && (
           <TabButton
             label={`Transfer${myPendingRequests > 0 ? ` (${myPendingRequests})` : ''}`}
