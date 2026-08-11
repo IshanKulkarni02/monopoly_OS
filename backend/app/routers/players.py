@@ -4,8 +4,9 @@ from sqlalchemy.orm import Session
 from app import auth, schemas
 from app.connection_manager import manager
 from app.db import get_db
-from app.game_engine import board_engine
-from app.game_engine.events import cards, resolve, wheel
+from app.game_engine import board_engine, mystery
+from app.game_engine.events import resolve, wheel
+from app.game_engine.events.base import EventOutcome
 from app.game_engine.money_modes import banker_ledger
 from app.models import EventLogEntry
 from app.serializers import serialize_game_state
@@ -60,13 +61,19 @@ async def draw_event(
     if tile.kind != "mystery":
         raise HTTPException(status_code=400, detail="That space doesn't draw a card or spin the wheel")
 
-    event_system = game.ruleset_json.get("event_system", "cards")
-    if event_system == "wheel":
-        outcome = wheel.spin()
-    else:
-        outcome = cards.draw(cards.deck_for_key(tile.mystery_deck_key))
+    # IRL declare-mode games never otherwise write Player.position (only
+    # virtual/IRL-tracked play does) — sync it to what was just declared so
+    # a move_forward/move_backward effect has a real baseline to move from,
+    # instead of silently moving relative to a stale default of 0.
+    player.position = payload.space_index
 
+    event_system = game.ruleset_json.get("event_system", "cards")
     try:
+        if event_system == "wheel":
+            outcome = wheel.spin()
+        else:
+            card = mystery.draw(db, game, tile.mystery_deck_key)
+            outcome = EventOutcome(kind=card.effect_kind, amount=card.amount, text=card.text, target_position=card.target_position)
         result = resolve.apply_event_outcome(db, game, player=player, outcome=outcome)
         db.commit()
     except banker_ledger.GameEngineError as exc:

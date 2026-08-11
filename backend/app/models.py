@@ -140,6 +140,26 @@ class BoardTile(Base):
     __table_args__ = (UniqueConstraint("board_id", "position", name="uq_board_tile_position"),)
 
 
+class MysteryCard(Base):
+    """One card/segment in a board's mystery deck. Decks are scoped to a
+    board (not global Python constants) and selected by `deck_key`, same
+    key a board's mystery tiles carry — "chance"/"community_chest" for the
+    classic-structured boards, "mystery" for a unified deck."""
+
+    __tablename__ = "mystery_cards"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_id)
+    board_id: Mapped[str] = mapped_column(ForeignKey("boards.id"))
+    deck_key: Mapped[str] = mapped_column(String, default="mystery")
+    text: Mapped[str] = mapped_column(String)
+    effect_kind: Mapped[str] = mapped_column(String)
+    amount: Mapped[int] = mapped_column(Integer, default=0)
+    target_position: Mapped[int | None] = mapped_column(Integer, nullable=True)  # move_to only
+    weight: Mapped[int] = mapped_column(Integer, default=1)  # relative likelihood, probability mode
+
+    board: Mapped["Board"] = relationship()
+
+
 class Game(Base):
     __tablename__ = "games"
 
@@ -165,6 +185,10 @@ class Game(Base):
     # it seeds turn order from join time instead (no physical dice to record).
     pending_turn_order_rolls: Mapped[list] = mapped_column(JSON, default=list)
     free_parking_pot_amount: Mapped[int] = mapped_column(Integer, default=0)
+    # Finite-deck mystery mode: {deck_key: {"order": [card_id, ...], "index": int}} —
+    # a shuffled draw order per deck, reshuffled once exhausted. Probability
+    # mode (the default) doesn't use this at all.
+    mystery_deck_state: Mapped[dict] = mapped_column(JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     board: Mapped["Board | None"] = relationship()
@@ -191,6 +215,8 @@ class Player(Base):
     position: Mapped[int] = mapped_column(Integer, default=0)  # board space index; virtual play_mode only
     in_jail: Mapped[bool] = mapped_column(Boolean, default=False)
     jail_turns: Mapped[int] = mapped_column(Integer, default=0)
+    skip_next_turn: Mapped[bool] = mapped_column(Boolean, default=False)  # mystery "lose_turn" effect
+    extra_turns: Mapped[int] = mapped_column(Integer, default=0)  # mystery "extra_turn" effect
     joined_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     game: Mapped["Game"] = relationship(back_populates="players")

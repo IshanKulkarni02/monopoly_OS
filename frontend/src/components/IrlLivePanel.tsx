@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { BoardMap } from './BoardMap'
 import { PlayerTabs } from './PlayerTabs'
-import { useFormatMoney } from '../hooks/useBoard'
+import { denominationSummary } from '../boardData'
+import { useBoard, useFormatMoney } from '../hooks/useBoard'
 import {
   endTurn,
   getPlayerTokens,
@@ -70,6 +71,7 @@ export function IrlLivePanel({
   isHost: boolean
 }) {
   const formatMoney = useFormatMoney()
+  const { currency } = useBoard()
   const diceCount = state.ruleset.dice_count ?? 2
   const [selectedId, setSelectedId] = useState<string>(state.current_turn_player_id || myPlayerId)
   const [diceInputs, setDiceInputs] = useState<string[]>(Array.from({ length: diceCount }, () => ''))
@@ -203,6 +205,9 @@ export function IrlLivePanel({
       {isCurrentTurnSelected ? (
         <div className="flex flex-col gap-3 rounded border-2 border-monopoly-green bg-monopoly-green/10 p-3">
           <p className="text-sm font-bold uppercase tracking-wide text-monopoly-green-dark">{currentPlayer?.name}'s turn</p>
+          {selectedPlayer && denominationSummary(selectedPlayer.denominations, currency.symbol) && (
+            <p className="font-mono text-xs text-ink-soft">{denominationSummary(selectedPlayer.denominations, currency.symbol)}</p>
+          )}
           {selectedPlayer?.in_jail && <p className="text-sm font-bold text-monopoly-red">In jail (attempt {selectedPlayer.jail_turns + 1} of 3)</p>}
 
           <div className="flex flex-wrap gap-2">

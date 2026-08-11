@@ -114,6 +114,8 @@ export function Landing() {
   const [moneyMode, setMoneyMode] = useState<MoneyMode>('banker_ledger')
   const [diceCount, setDiceCount] = useState('2')
   const [turnOrderMode, setTurnOrderMode] = useState<'highest_roll_first' | 'entry_order'>('highest_roll_first')
+  const [mysteryDeckMode, setMysteryDeckMode] = useState<'probability' | 'finite'>('probability')
+  const [trackDenominations, setTrackDenominations] = useState(false)
   const [startingCash, setStartingCash] = useState('')
   const [showTwists, setShowTwists] = useState(false)
   const [eventSystem, setEventSystem] = useState<EventSystem>('cards')
@@ -203,6 +205,8 @@ export function Landing() {
         inflationRate: (Number(inflationRate) || 0) / 100,
         diceCount: Number(diceCount) || 2,
         turnOrderMode,
+        mysteryDeckMode,
+        trackDenominations,
         sessionToken: account?.sessionToken,
       })
       saveSession({
@@ -402,6 +406,20 @@ export function Landing() {
                   <option value="wheel">Spin the wheel</option>
                 </select>
               </div>
+              {eventSystem === 'cards' && (
+                <div>
+                  <label className={labelClass}>Mystery deck mode</label>
+                  <select value={mysteryDeckMode} onChange={(e) => setMysteryDeckMode(e.target.value as 'probability' | 'finite')} className={fieldClass}>
+                    <option value="probability">Probability — draw with replacement</option>
+                    <option value="finite">Finite deck — no repeats until exhausted</option>
+                  </select>
+                </div>
+              )}
+
+              <label className="flex items-center gap-2 text-sm font-medium">
+                <input type="checkbox" checked={trackDenominations} onChange={(e) => setTrackDenominations(e.target.checked)} />
+                Track actual note counts (physical money mode)
+              </label>
 
               <label className="flex items-center gap-2 text-sm font-medium">
                 <input type="checkbox" checked={freeParkingPot} onChange={(e) => setFreeParkingPot(e.target.checked)} />

@@ -18,7 +18,57 @@ Four boards ship with the engine:
 from sqlalchemy.orm import Session
 
 from app.game_engine import board_engine, board_generator
-from app.models import Board, BoardGroup, BoardTile
+from app.models import Board, BoardGroup, BoardTile, MysteryCard
+
+# (effect_kind, text, amount) — ported from what used to be the hardcoded
+# CHANCE_DECK/COMMUNITY_CHEST_DECK/MYSTERY_DECK constants in events/cards.py
+# (original wording, not a reproduction of any published card text). Now
+# just seed data for MysteryCard rows — the Mystery Editor is what actually
+# owns this content from here on, per board.
+CHANCE_CARDS: list[tuple[str, str, int]] = [
+    ("bank_pays", "A forgotten refund arrives from the bank.", 50),
+    ("bank_pays", "Your investments have a great quarter.", 150),
+    ("pay_bank", "Property taxes are due.", 100),
+    ("pay_bank", "You owe back rent on a place you forgot about.", 75),
+    ("pay_each_player", "You throw a party for the whole table.", 25),
+    ("collect_each_player", "It's your birthday — everyone chips in.", 25),
+    ("jail_free", "You find a get-out-of-jail-free voucher.", 0),
+    ("pass_go", "A shortcut sends you straight back to GO.", 0),
+    ("pay_bank", "A parking fine catches up with you.", 50),
+]
+
+COMMUNITY_CHEST_CARDS: list[tuple[str, str, int]] = [
+    ("bank_pays", "You win a neighborhood raffle.", 100),
+    ("bank_pays", "A relative remembers you in their will.", 200),
+    ("pay_bank", "A surprise bill arrives.", 100),
+    ("pay_bank", "You cover a shared utility bill.", 40),
+    ("collect_each_player", "Everyone pays you back for gas.", 10),
+    ("pay_each_player", "You lose a friendly bet with the table.", 10),
+    ("jail_free", "A lucky coupon keeps you out of jail.", 0),
+    ("bank_pays", "A lucky break pays off.", 75),
+]
+
+MYSTERY_CARDS: list[tuple[str, str, int]] = [
+    ("bank_pays", "A festival bonus lands in your account.", 100),
+    ("bank_pays", "A lucky investment pays off big.", 250),
+    ("pay_bank", "An unexpected repair bill arrives.", 150),
+    ("pay_bank", "You cover a shared expense.", 80),
+    ("pay_each_player", "You treat the whole table.", 40),
+    ("collect_each_player", "Everyone chips in for your birthday.", 40),
+    ("jail_free", "You find a get-out-of-jail-free voucher.", 0),
+    ("pass_go", "A shortcut sends you straight back to GO.", 0),
+    ("move_forward", "Advance three spaces.", 3),
+    ("lose_turn", "Caught in traffic — lose your next turn.", 0),
+]
+
+
+def _seed_mystery_cards(db: Session, board: Board, deck_key: str, cards: list[tuple[str, str, int]]) -> None:
+    existing = db.query(MysteryCard).filter(MysteryCard.board_id == board.id, MysteryCard.deck_key == deck_key).first()
+    if existing:
+        return
+    for effect_kind, text, amount in cards:
+        db.add(MysteryCard(board_id=board.id, deck_key=deck_key, text=text, effect_kind=effect_kind, amount=amount))
+    db.commit()
 
 CLASSIC_GROUPS: dict[str, dict] = {
     "brown": {"name": "Brown", "color": "#8b5a2b"},
@@ -160,6 +210,8 @@ def _seed_classic_structured_board(
 
     db.commit()
     db.refresh(board)
+    _seed_mystery_cards(db, board, "chance", CHANCE_CARDS)
+    _seed_mystery_cards(db, board, "community_chest", COMMUNITY_CHEST_CARDS)
     return board
 
 
@@ -306,6 +358,7 @@ def seed_current_game_board(db: Session, *, generator_seed: int = 42) -> Board:
 
     db.commit()
     db.refresh(board)
+    _seed_mystery_cards(db, board, "mystery", MYSTERY_CARDS)
     return board
 
 

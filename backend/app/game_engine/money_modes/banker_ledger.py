@@ -15,7 +15,7 @@ any board shape, any group layout, any rent model.
 from sqlalchemy.orm import Session
 
 from app import logs
-from app.game_engine import board_engine, challenges, inflation
+from app.game_engine import board_engine, challenges, currency, inflation
 from app.game_engine.board_engine import BoardTile
 from app.game_engine.valuation import estimate_net_worth
 from app.models import Game, Player, Property, Transaction
@@ -47,8 +47,30 @@ def apply_transaction(
 ) -> Transaction:
     if amount < 0:
         raise GameEngineError("Transaction amount must be non-negative")
+
+    currency_cfg = game.ruleset_json.get("currency", {})
+    denominations = currency_cfg.get("denominations") or []
+    track_notes = bool(currency_cfg.get("track_denominations")) and bool(denominations) and amount > 0
+
+    if track_notes:
+        # Rent-with-inflation, tax percentages, and mortgage-plus-interest
+        # all routinely land on amounts that aren't a whole number of the
+        # smallest note — e.g. 10% interest on a ₹170 mortgage is ₹187, not
+        # payable in ₹10 notes. Round to the nearest note *before* touching
+        # balance or denominations, once, so the balance change, the note
+        # change, and the amount this transaction records all agree — not
+        # three different numbers depending which one got rounded first.
+        smallest = min(denominations)
+        amount = round(amount / smallest) * smallest
+
     if from_player is not None and from_player.balance < amount:
         raise GameEngineError(f"{from_player.name} does not have enough cash for this transaction")
+
+    if track_notes and from_player is not None:
+        try:
+            from_player.denominations = currency.pay_to_bank(from_player.denominations, amount, denominations)
+        except currency.CurrencyError as exc:
+            raise GameEngineError(f"{from_player.name} can't make this exact payment with their notes: {exc}") from exc
 
     if from_player is not None:
         from_player.balance -= amount
@@ -56,6 +78,9 @@ def apply_transaction(
         to_player.balance += amount
     if to_player is None and feeds_free_parking_pot and game.ruleset_json.get("free_parking_pot"):
         game.free_parking_pot_amount += amount
+
+    if track_notes and to_player is not None:
+        to_player.denominations = currency.receive_from_bank(to_player.denominations, amount, denominations)
 
     txn = Transaction(
         game_id=game.id,

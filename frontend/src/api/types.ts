@@ -126,6 +126,7 @@ export interface GameStateOut {
     inflation: { enabled: boolean; trigger: 'on_pass_go' | 'per_round'; rate: number; scope: string[] }
     currency: CurrencyConfig
     mortgage_percentage: number
+    mortgage_interest: number
     group_rent_multiplier: number
     jail_fine: number
     jail_max_turns: number

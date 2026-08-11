@@ -47,6 +47,8 @@ export function createGame(input: {
   inflationRate: number
   diceCount: number
   turnOrderMode: 'highest_roll_first' | 'entry_order'
+  mysteryDeckMode: 'probability' | 'finite'
+  trackDenominations: boolean
   sessionToken?: string | null
 }): Promise<GameCreateResponse> {
   return request('/api/games', {
@@ -68,6 +70,8 @@ export function createGame(input: {
       inflation_rate: input.inflationRate,
       dice_count: input.diceCount,
       turn_order_mode: input.turnOrderMode,
+      mystery_deck_mode: input.mysteryDeckMode,
+      track_denominations: input.trackDenominations,
     }),
   })
 }
@@ -185,6 +189,49 @@ export function updateGroup(
     headers: { 'x-session-token': sessionToken },
     body: JSON.stringify(fields),
   })
+}
+
+export interface MysteryCardOut {
+  id: string
+  deck_key: string
+  text: string
+  effect_kind: string
+  amount: number
+  target_position: number | null
+  weight: number
+}
+
+export function listMysteryCards(key: string, deckKey?: string): Promise<MysteryCardOut[]> {
+  return request(`/api/boards/${key}/mystery_cards${deckKey ? `?deck_key=${encodeURIComponent(deckKey)}` : ''}`)
+}
+
+export function createMysteryCard(
+  key: string,
+  sessionToken: string,
+  input: { deck_key: string; text: string; effect_kind: string; amount: number; target_position?: number | null; weight?: number },
+): Promise<MysteryCardOut> {
+  return request(`/api/boards/${key}/mystery_cards`, {
+    method: 'POST',
+    headers: { 'x-session-token': sessionToken },
+    body: JSON.stringify(input),
+  })
+}
+
+export function updateMysteryCard(
+  key: string,
+  cardId: string,
+  sessionToken: string,
+  fields: Partial<Omit<MysteryCardOut, 'id'>>,
+): Promise<MysteryCardOut> {
+  return request(`/api/boards/${key}/mystery_cards/${cardId}`, {
+    method: 'PATCH',
+    headers: { 'x-session-token': sessionToken },
+    body: JSON.stringify(fields),
+  })
+}
+
+export function deleteMysteryCard(key: string, cardId: string, sessionToken: string): Promise<{ status: string }> {
+  return request(`/api/boards/${key}/mystery_cards/${cardId}`, { method: 'DELETE', headers: { 'x-session-token': sessionToken } })
 }
 
 export function regenerateLayout(
@@ -388,6 +435,20 @@ export function rollDice(
 
 export function endTurn(code: string, playerId: string, playerToken: string): Promise<GameStateOut> {
   return request(`/api/games/${code}/end_turn`, {
+    method: 'POST',
+    headers: { 'x-player-id': playerId, 'x-player-token': playerToken },
+  })
+}
+
+export function mortgageProperty(code: string, playerId: string, playerToken: string, propertyId: string): Promise<GameStateOut> {
+  return request(`/api/games/${code}/properties/${propertyId}/mortgage`, {
+    method: 'POST',
+    headers: { 'x-player-id': playerId, 'x-player-token': playerToken },
+  })
+}
+
+export function unmortgageProperty(code: string, playerId: string, playerToken: string, propertyId: string): Promise<GameStateOut> {
+  return request(`/api/games/${code}/properties/${propertyId}/unmortgage`, {
     method: 'POST',
     headers: { 'x-player-id': playerId, 'x-player-token': playerToken },
   })
