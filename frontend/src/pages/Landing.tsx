@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { createGame, joinGame, listBoards, login, signup } from '../api/client'
+import { createGame, duplicateBoard, joinGame, listBoards, login, signup } from '../api/client'
 import { saveSession } from '../hooks/useSession'
 import { useAccount } from '../hooks/useAccount'
 import type { BoardSummaryOut, EventSystem, MoneyMode, PlayMode } from '../api/types'
@@ -137,6 +137,30 @@ export function Landing() {
   }, [account?.sessionToken])
 
   const isIrlTracked = playMode === 'irl_companion' && bankerMode === 'auto'
+  const selectedBoard = boards.find((b) => b.key === boardKey)
+  const ownsSelectedBoard = Boolean(account && selectedBoard?.owner_user_id === account.user.id)
+
+  async function handleEditOrDuplicateBoard() {
+    if (!account || !selectedBoard) return
+    if (ownsSelectedBoard) {
+      navigate(`/boards/${selectedBoard.key}/edit`)
+      return
+    }
+    const name = window.prompt('Name your customized copy:', `${selectedBoard.name} (mine)`)
+    if (!name) return
+    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
+    const key = slug || `board-${Date.now()}`
+    try {
+      const created = await duplicateBoard(selectedBoard.key, account.sessionToken, {
+        key,
+        name,
+        description: `Customized from ${selectedBoard.name}`,
+      })
+      navigate(`/boards/${created.key}/edit`)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not duplicate board')
+    }
+  }
 
   async function handleJoin(e: React.FormEvent) {
     e.preventDefault()
@@ -262,8 +286,11 @@ export function Landing() {
                   </option>
                 ))}
               </select>
-              {boards.find((b) => b.key === boardKey)?.description && (
-                <p className="mt-1 text-xs font-medium text-ink-soft">{boards.find((b) => b.key === boardKey)?.description}</p>
+              {selectedBoard?.description && <p className="mt-1 text-xs font-medium text-ink-soft">{selectedBoard.description}</p>}
+              {account && (
+                <button type="button" onClick={handleEditOrDuplicateBoard} className="mt-1 text-xs font-bold text-monopoly-green hover:underline">
+                  {ownsSelectedBoard ? '✎ Edit this board' : '⎘ Duplicate & customize this board'}
+                </button>
               )}
             </div>
           )}

@@ -10,9 +10,13 @@ lookups.
 
 from sqlalchemy.orm import Session
 
+from app.game_engine import board_generator
 from app.models import Board, BoardGroup, BoardTile, Property
 
 PURCHASABLE_KINDS = {"property"}
+VALID_KINDS = {"go", "property", "mystery", "tax", "jail", "vacation", "go_to_jail", "custom"}
+VALID_RENT_MODELS = {"fixed_table", "group_count_table", "dice_multiplier_table"}
+CORNER_KINDS = {"go", "jail", "vacation", "go_to_jail"}
 
 
 class BoardEngineError(Exception):
@@ -147,3 +151,170 @@ def clone_board(
     db.commit()
     db.refresh(clone)
     return clone
+
+
+# --- Board editor: tile/group CRUD + regenerating layout on demand -------
+#
+# All position shifts below go through a disjoint negative range first
+# (`_stage`/`_unstage`) rather than shifting positions directly in place.
+# `(board_id, position)` is unique, and a straight ascending-or-descending
+# Python loop over positions isn't a reliable way to guarantee every
+# intermediate UPDATE avoids colliding with a not-yet-moved row — staging
+# through a range no real position ever occupies sidesteps the ordering
+# question entirely instead of relying on it working out.
+
+def _stage(position: int) -> int:
+    return -(position + 1)
+
+
+def _unstage(staged: int) -> int:
+    return -staged - 1
+
+
+def delete_board(db: Session, board: Board) -> None:
+    if board.is_preset:
+        raise BoardEngineError("Preset boards can't be deleted — duplicate one to customize it instead")
+    db.delete(board)
+    db.commit()
+
+
+def create_group(db: Session, board: Board, *, key: str, name: str, color: str, rent_multiplier: float | None = None) -> BoardGroup:
+    if db.query(BoardGroup).filter(BoardGroup.board_id == board.id, BoardGroup.key == key).first():
+        raise BoardEngineError(f"Group '{key}' already exists on this board")
+    sort_order = db.query(BoardGroup).filter(BoardGroup.board_id == board.id).count()
+    group = BoardGroup(board_id=board.id, key=key, name=name, color=color, rent_multiplier=rent_multiplier, sort_order=sort_order)
+    db.add(group)
+    db.commit()
+    db.refresh(group)
+    return group
+
+
+def update_group(db: Session, board: Board, group: BoardGroup, fields: dict) -> BoardGroup:
+    if group.board_id != board.id:
+        raise BoardEngineError("That group doesn't belong to this board")
+    for key, value in fields.items():
+        setattr(group, key, value)
+    db.commit()
+    db.refresh(group)
+    return group
+
+
+def _validate_tile_fields(board: Board, db: Session, fields: dict) -> None:
+    if "kind" in fields and fields["kind"] not in VALID_KINDS:
+        raise BoardEngineError(f"Invalid tile kind '{fields['kind']}'")
+    if "rent_model" in fields and fields["rent_model"] not in VALID_RENT_MODELS:
+        raise BoardEngineError(f"Invalid rent model '{fields['rent_model']}'")
+    if fields.get("group_id"):
+        group = db.get(BoardGroup, fields["group_id"])
+        if not group or group.board_id != board.id:
+            raise BoardEngineError("That group doesn't belong to this board")
+    for numeric_field in ("rent_table", "upgrade_costs"):
+        value = fields.get(numeric_field)
+        if value is not None and any((not isinstance(v, int)) or v < 0 for v in value):
+            raise BoardEngineError(f"{numeric_field} must be a list of non-negative integers")
+
+
+def update_tile(db: Session, board: Board, tile: BoardTile, fields: dict) -> BoardTile:
+    if tile.board_id != board.id:
+        raise BoardEngineError("That tile doesn't belong to this board")
+    _validate_tile_fields(board, db, fields)
+    for key, value in fields.items():
+        setattr(tile, key, value)
+    db.commit()
+    db.refresh(tile)
+    return tile
+
+
+def insert_tile(db: Session, board: Board, *, position: int, name: str, kind: str, fields: dict | None = None) -> BoardTile:
+    if not (0 <= position <= board.size):
+        raise BoardEngineError(f"Position {position} is out of range for a board of size {board.size}")
+    fields = dict(fields or {})
+    _validate_tile_fields(board, db, {"kind": kind, **fields})
+
+    shifted = db.query(BoardTile).filter(BoardTile.board_id == board.id, BoardTile.position >= position).all()
+    for t in shifted:
+        t.position = _stage(t.position + 1)
+    db.flush()
+    for t in shifted:
+        t.position = _unstage(t.position)
+    db.flush()
+
+    tile = BoardTile(board_id=board.id, position=position, name=name, kind=kind, **fields)
+    db.add(tile)
+    board.size += 1
+    db.commit()
+    db.refresh(tile)
+    return tile
+
+
+def remove_tile(db: Session, board: Board, tile: BoardTile) -> None:
+    if tile.board_id != board.id:
+        raise BoardEngineError("That tile doesn't belong to this board")
+    if board.size <= 4:
+        raise BoardEngineError("A board needs at least 4 tiles")
+
+    removed_position = tile.position
+    db.delete(tile)
+    db.flush()
+
+    shifted = db.query(BoardTile).filter(BoardTile.board_id == board.id, BoardTile.position > removed_position).all()
+    for t in shifted:
+        t.position = _stage(t.position - 1)
+    db.flush()
+    for t in shifted:
+        t.position = _unstage(t.position)
+
+    board.size -= 1
+    db.commit()
+
+
+def swap_tile_positions(db: Session, board: Board, tile_a: BoardTile, tile_b: BoardTile) -> None:
+    if tile_a.board_id != board.id or tile_b.board_id != board.id:
+        raise BoardEngineError("Both tiles must belong to this board")
+    if tile_a.id == tile_b.id:
+        return
+    a_pos, b_pos = tile_a.position, tile_b.position
+    tile_a.position = _stage(a_pos)
+    db.flush()
+    tile_b.position = a_pos
+    db.flush()
+    tile_a.position = b_pos
+    db.commit()
+
+
+def regenerate_layout(
+    db: Session, board: Board, *, group_constraints: dict[str, dict], seed: int | None = None
+) -> Board:
+    """Re-runs the constraint-based generator on this board's *existing*
+    tiles — same names/prices/groups, new positions. Corner-kind tiles
+    (go/jail/vacation/go_to_jail) never move; any other tile with
+    `locked=True` keeps its current position too, same as a
+    generator-time lock."""
+    tiles = all_tiles(db, board.id)
+    corner_positions = [t.position for t in tiles if t.kind in CORNER_KINDS]
+
+    tile_specs = []
+    for t in tiles:
+        if t.kind in CORNER_KINDS:
+            continue
+        tile_specs.append({
+            "key": t.id,
+            "group_key": t.group.key if t.group else None,
+            "locked_position": t.position if t.locked else None,
+        })
+
+    layout = board_generator.generate_layout(
+        board_size=board.size, corner_positions=corner_positions, tile_specs=tile_specs,
+        group_constraints=group_constraints, seed=seed,
+    )
+
+    movable = [t for t in tiles if t.kind not in CORNER_KINDS]
+    for t in movable:
+        t.position = _stage(layout[t.id])
+    db.flush()
+    for t in movable:
+        t.position = _unstage(t.position)
+
+    db.commit()
+    db.refresh(board)
+    return board
