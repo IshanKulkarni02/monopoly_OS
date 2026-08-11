@@ -22,6 +22,7 @@ export interface PlayerOut {
   position: number
   in_jail: boolean
   jail_turns: number
+  net_worth: number
 }
 
 export interface PropertyOut {
@@ -83,6 +84,12 @@ export interface BoardTileOut {
   locked: boolean
 }
 
+export interface PresetPlayOptions {
+  play_mode: PlayMode
+  banker_mode: 'manual' | 'auto'
+  money_mode: MoneyMode
+}
+
 export interface BoardSummaryOut {
   id: string
   key: string
@@ -91,6 +98,8 @@ export interface BoardSummaryOut {
   size: number
   is_preset: boolean
   owner_user_id: string | null
+  default_ruleset_overrides: Record<string, unknown>
+  preset_play_options: Partial<PresetPlayOptions>
 }
 
 export interface BoardDetailOut extends BoardSummaryOut {
@@ -159,6 +168,7 @@ export interface GameStateOut {
     auction_enabled: boolean
     auction_min_increment: number
     trading_enabled: boolean
+    turn_timer_seconds: number
     [key: string]: unknown
   }
   inflation_multiplier: number
@@ -166,6 +176,8 @@ export interface GameStateOut {
   free_parking_pot_amount: number
   turn_order: string[]
   current_turn_player_id: string | null
+  turn_started_at: string | null
+  winner_player_id: string | null
   pending_turn_order_rolls: { player_id: string; player_name: string; roll: number }[]
   players: PlayerOut[]
   properties: PropertyOut[]

@@ -108,6 +108,109 @@ def add_bot(db: Session, game: Game, *, name: str | None = None) -> Player:
     return bot
 
 
+EXPORT_FORMAT_VERSION = 1
+
+_PLAYER_EXPORT_FIELDS = [
+    "name", "is_host", "is_banker", "is_bot", "balance", "denominations", "status",
+    "jail_free_cards", "position", "in_jail", "jail_turns", "skip_next_turn", "extra_turns",
+]
+
+
+def export_game(game: Game) -> dict:
+    """A portable snapshot of a game's *current playable state* — enough to
+    resume it as a fresh game later (save game night, continue next week).
+    Deliberately drops auth tokens (a fresh import always mints new ones —
+    an exported file isn't something you'd want to hand someone your live
+    game's tokens inside of) and the transaction/event log history (an
+    audit trail, not state the game needs in order to keep being played) to
+    keep the format simple. Players/properties reference each other by
+    *index* into this blob's own lists, not by database id — ids get
+    regenerated on import."""
+    players = sorted(game.players, key=lambda p: p.joined_at)
+    index_of = {p.id: i for i, p in enumerate(players)}
+    return {
+        "version": EXPORT_FORMAT_VERSION,
+        "name": game.name,
+        "board_key": game.board.key,
+        "banker_mode": game.banker_mode,
+        "money_mode": game.money_mode,
+        "play_mode": game.play_mode,
+        "ruleset_json": game.ruleset_json,
+        "round_number": game.round_number,
+        "inflation_multiplier": game.inflation_multiplier,
+        "free_parking_pot_amount": game.free_parking_pot_amount,
+        "mystery_deck_state": game.mystery_deck_state,
+        "players": [{field: getattr(p, field) for field in _PLAYER_EXPORT_FIELDS} for p in players],
+        "properties": [
+            {
+                "space_index": p.space_index,
+                "owner_index": index_of.get(p.owner_id) if p.owner_id else None,
+                "houses": p.houses,
+                "mortgaged": p.mortgaged,
+            }
+            for p in game.properties
+        ],
+        "turn_order_indices": [index_of[pid] for pid in game.turn_order if pid in index_of],
+        "current_turn_index": index_of.get(game.current_turn_player_id) if game.current_turn_player_id else None,
+    }
+
+
+def import_game(db: Session, data: dict) -> tuple[Game, Player]:
+    if data.get("version") != EXPORT_FORMAT_VERSION:
+        raise ValueError(f"Unsupported export format (expected version {EXPORT_FORMAT_VERSION})")
+    board = board_engine.get_board_by_key(db, data["board_key"])
+    if board is None:
+        raise ValueError(f"Unknown board '{data['board_key']}' — that board no longer exists on this server")
+    if not data.get("players"):
+        raise ValueError("Export has no players")
+
+    game = Game(
+        code=generate_join_code(db),
+        name=data.get("name", "Monopoly Night"),
+        board_id=board.id,
+        banker_mode=data.get("banker_mode", "manual"),
+        money_mode=data.get("money_mode", "banker_ledger"),
+        play_mode=data.get("play_mode", "irl_companion"),
+        ruleset_json=data.get("ruleset_json") or build_ruleset(),
+        round_number=data.get("round_number", 1),
+        inflation_multiplier=data.get("inflation_multiplier", 1.0),
+        free_parking_pot_amount=data.get("free_parking_pot_amount", 0),
+        mystery_deck_state=data.get("mystery_deck_state", {}),
+        status="active",
+    )
+    db.add(game)
+    db.flush()
+
+    players = []
+    for p_data in data["players"]:
+        player = Player(game_id=game.id, **{field: p_data[field] for field in _PLAYER_EXPORT_FIELDS if field in p_data})
+        db.add(player)
+        db.flush()
+        players.append(player)
+
+    game.host_player_id = next((p.id for p in players if p.is_host), players[0].id)
+
+    for prop_data in data.get("properties", []):
+        tile = board_engine.tile_at(db, board.id, prop_data["space_index"])
+        owner_index = prop_data.get("owner_index")
+        db.add(Property(
+            game_id=game.id, space_index=prop_data["space_index"], name=tile.name, price=tile.price or 0,
+            owner_id=players[owner_index].id if owner_index is not None else None,
+            houses=prop_data.get("houses", 0), mortgaged=prop_data.get("mortgaged", False),
+        ))
+
+    turn_order_indices = data.get("turn_order_indices") or []
+    game.turn_order = [players[i].id for i in turn_order_indices if i < len(players)]
+    current_turn_index = data.get("current_turn_index")
+    game.current_turn_player_id = players[current_turn_index].id if current_turn_index is not None else None
+
+    logs.write_event(db, game_id=game.id, kind="game_imported", payload={"name": game.name, "player_count": len(players)})
+    db.commit()
+    db.refresh(game)
+    host = db.get(Player, game.host_player_id)
+    return game, host
+
+
 def start_game(db: Session, game: Game) -> Game:
     if game.status != "lobby":
         raise ValueError("Game already started")

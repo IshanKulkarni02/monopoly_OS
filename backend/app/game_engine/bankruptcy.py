@@ -14,13 +14,19 @@ still just fails with `InsufficientFundsError` (unchanged), and the player
 bankruptcy against that same creditor as a separate, deliberate step.
 """
 
+from datetime import datetime, timezone
+
 from sqlalchemy.orm import Session
 
 from app import logs
-from app.game_engine import board_engine
+from app.game_engine import board_engine, win_conditions
 from app.game_engine.money_modes.banker_ledger import GameEngineError, apply_transaction
 from app.game_engine.turn_engine import _next_active_player_id
 from app.models import Game, Player, Property
+
+
+def _now() -> datetime:
+    return datetime.now(timezone.utc)
 
 
 class BankruptcyError(GameEngineError):
@@ -93,6 +99,7 @@ def declare_bankruptcy(db: Session, game: Game, *, player: Player, creditor: Pla
     if game.current_turn_player_id == player.id:
         next_id = _next_active_player_id(db, game, after_player_id=player.id)
         game.current_turn_player_id = None if next_id == player.id else next_id
+        game.turn_started_at = _now() if game.current_turn_player_id else None
 
     logs.write_event(
         db, game_id=game.id, kind="bankruptcy",
@@ -104,9 +111,11 @@ def declare_bankruptcy(db: Session, game: Game, *, player: Player, creditor: Pla
             "properties_transferred": transferred,
         },
     )
+    winner = win_conditions.check_win_condition(db, game)
     return {
         "player_id": player.id,
         "creditor_player_id": creditor.id if creditor else None,
         "paid": payout,
         "properties_transferred": transferred,
+        "winner_id": winner.id if winner else None,
     }

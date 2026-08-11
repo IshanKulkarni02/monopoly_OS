@@ -1,7 +1,26 @@
-from datetime import datetime
-from typing import Any, Literal
+from datetime import datetime, timezone
+from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field
+
+
+def _ensure_utc(value: datetime | None) -> datetime | None:
+    """SQLite has no real timezone-aware storage type, so SQLAlchemy's
+    `DateTime(timezone=True)` columns round-trip as naive datetimes even
+    though every write uses `datetime.now(timezone.utc)` — the tzinfo is
+    silently dropped on read-back. Serializing that naive value straight to
+    JSON omits the UTC offset, and a browser's `new Date(...)` treats an
+    offset-less ISO string as *local* time, not UTC — in any timezone ahead
+    of UTC this makes a just-set timestamp parse as being in the future (or,
+    for a deadline computed from it, already in the past). Every datetime
+    field exposed via the API routes through this so the wire format always
+    carries an explicit UTC offset, regardless of what SQLite handed back."""
+    if value is not None and value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value
+
+
+UtcDatetime = Annotated[datetime, BeforeValidator(_ensure_utc)]
 
 
 class SignupRequest(BaseModel):
@@ -47,6 +66,7 @@ class GameCreateRequest(BaseModel):
     track_denominations: bool = False
     auction_enabled: bool = False
     trading_enabled: bool = True
+    turn_timer_seconds: int = Field(default=0, ge=0, le=3600)
 
 
 class JoinGameRequest(BaseModel):
@@ -71,6 +91,7 @@ class PlayerOut(BaseModel):
     position: int
     in_jail: bool
     jail_turns: int
+    net_worth: int = 0
 
 
 class PropertyOut(BaseModel):
@@ -120,6 +141,8 @@ class BoardSummaryOut(BaseModel):
     size: int
     is_preset: bool
     owner_user_id: str | None
+    default_ruleset_overrides: dict[str, Any] = {}
+    preset_play_options: dict[str, Any] = {}
 
 
 class BoardDetailOut(BoardSummaryOut):
@@ -138,7 +161,7 @@ class TransactionOut(BaseModel):
     created_by_player_id: str | None
     reversed: bool
     status: str
-    created_at: datetime
+    created_at: UtcDatetime
 
 
 class EventLogOut(BaseModel):
@@ -147,7 +170,7 @@ class EventLogOut(BaseModel):
     kind: str
     player_ids: list[str]
     payload: dict[str, Any]
-    created_at: datetime
+    created_at: UtcDatetime
 
 
 class AuctionOut(BaseModel):
@@ -180,7 +203,7 @@ class TradeOut(BaseModel):
     request_property_ids: list[str]
     request_jail_cards: int
     status: str
-    created_at: datetime
+    created_at: UtcDatetime
 
 
 class ProposeTradeRequest(BaseModel):
@@ -195,6 +218,10 @@ class ProposeTradeRequest(BaseModel):
 
 class DeclareBankruptcyRequest(BaseModel):
     creditor_player_id: str | None = None
+
+
+class ImportGameRequest(BaseModel):
+    data: dict[str, Any]
 
 
 class GameStateOut(BaseModel):
@@ -212,6 +239,8 @@ class GameStateOut(BaseModel):
     free_parking_pot_amount: int
     turn_order: list[str]
     current_turn_player_id: str | None
+    turn_started_at: UtcDatetime | None = None
+    winner_player_id: str | None = None
     pending_turn_order_rolls: list[dict[str, Any]]
     players: list[PlayerOut]
     properties: list[PropertyOut]

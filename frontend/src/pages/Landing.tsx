@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { createGame, duplicateBoard, joinGame, listBoards, login, signup } from '../api/client'
+import { createGame, duplicateBoard, importGame, joinGame, listBoards, login, signup } from '../api/client'
 import { saveSession } from '../hooks/useSession'
 import { useAccount } from '../hooks/useAccount'
 import type { BoardSummaryOut, EventSystem, MoneyMode, PlayMode } from '../api/types'
@@ -118,6 +118,7 @@ export function Landing() {
   const [trackDenominations, setTrackDenominations] = useState(false)
   const [auctionEnabled, setAuctionEnabled] = useState(false)
   const [tradingEnabled, setTradingEnabled] = useState(true)
+  const [turnTimerSeconds, setTurnTimerSeconds] = useState('0')
   const [startingCash, setStartingCash] = useState('')
   const [showTwists, setShowTwists] = useState(false)
   const [eventSystem, setEventSystem] = useState<EventSystem>('cards')
@@ -143,6 +144,31 @@ export function Landing() {
   const isIrlTracked = playMode === 'irl_companion' && bankerMode === 'auto'
   const selectedBoard = boards.find((b) => b.key === boardKey)
   const ownsSelectedBoard = Boolean(account && selectedBoard?.owner_user_id === account.user.id)
+  const hasPreset = Boolean(selectedBoard && Object.keys(selectedBoard.preset_play_options).length > 0)
+
+  function loadPresetSettings() {
+    if (!selectedBoard) return
+    const overrides = selectedBoard.default_ruleset_overrides as Record<string, any>
+    const play = selectedBoard.preset_play_options
+    if (play.play_mode) setPlayMode(play.play_mode)
+    if (play.banker_mode) setBankerMode(play.banker_mode)
+    if (play.money_mode) setMoneyMode(play.money_mode)
+    if (typeof overrides.free_parking_pot === 'boolean') setFreeParkingPot(overrides.free_parking_pot)
+    if (typeof overrides.challenge_before_buy?.enabled === 'boolean') setChallengeBeforeBuy(overrides.challenge_before_buy.enabled)
+    if (overrides.inflation) {
+      setInflationEnabled(Boolean(overrides.inflation.enabled))
+      if (overrides.inflation.trigger) setInflationTrigger(overrides.inflation.trigger)
+      if (typeof overrides.inflation.rate === 'number') setInflationRate(String(overrides.inflation.rate * 100))
+    }
+    if (overrides.dice_count) setDiceCount(String(overrides.dice_count))
+    if (overrides.turn_order_mode) setTurnOrderMode(overrides.turn_order_mode)
+    if (overrides.mystery_deck_mode) setMysteryDeckMode(overrides.mystery_deck_mode)
+    if (typeof overrides.currency?.track_denominations === 'boolean') setTrackDenominations(overrides.currency.track_denominations)
+    if (typeof overrides.auction_enabled === 'boolean') setAuctionEnabled(overrides.auction_enabled)
+    if (typeof overrides.trading_enabled === 'boolean') setTradingEnabled(overrides.trading_enabled)
+    if (typeof overrides.turn_timer_seconds === 'number') setTurnTimerSeconds(String(overrides.turn_timer_seconds))
+    setShowTwists(true)
+  }
 
   async function handleEditOrDuplicateBoard() {
     if (!account || !selectedBoard) return
@@ -163,6 +189,28 @@ export function Landing() {
       navigate(`/boards/${created.key}/edit`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not duplicate board')
+    }
+  }
+
+  async function handleImportFile(file: File) {
+    setError(null)
+    setBusy(true)
+    try {
+      const text = await file.text()
+      const data = JSON.parse(text)
+      const res = await importGame(data)
+      saveSession({
+        code: res.game.code,
+        playerId: res.host_player_id,
+        playerToken: res.player_token,
+        hostToken: res.host_token,
+        playerName: res.game.players.find((p) => p.id === res.host_player_id)?.name ?? 'Host',
+      })
+      navigate(`/g/${res.game.code}`)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not resume this file — is it a monopoly_OS save?')
+    } finally {
+      setBusy(false)
     }
   }
 
@@ -211,6 +259,7 @@ export function Landing() {
         trackDenominations,
         auctionEnabled,
         tradingEnabled,
+        turnTimerSeconds: Number(turnTimerSeconds) || 0,
         sessionToken: account?.sessionToken,
       })
       saveSession({
@@ -256,6 +305,21 @@ export function Landing() {
         </button>
       </div>
 
+      <label className="text-center text-xs font-bold text-monopoly-green hover:underline">
+        📂 Resume a saved game from a file…
+        <input
+          type="file"
+          accept="application/json"
+          disabled={busy}
+          onChange={(e) => {
+            const file = e.target.files?.[0]
+            if (file) void handleImportFile(file)
+            e.target.value = ''
+          }}
+          className="hidden"
+        />
+      </label>
+
       {mode === 'join' ? (
         <form onSubmit={handleJoin} className="flex flex-col gap-3">
           <input
@@ -295,11 +359,18 @@ export function Landing() {
                 ))}
               </select>
               {selectedBoard?.description && <p className="mt-1 text-xs font-medium text-ink-soft">{selectedBoard.description}</p>}
-              {account && (
-                <button type="button" onClick={handleEditOrDuplicateBoard} className="mt-1 text-xs font-bold text-monopoly-green hover:underline">
-                  {ownsSelectedBoard ? '✎ Edit this board' : '⎘ Duplicate & customize this board'}
-                </button>
-              )}
+              <div className="mt-1 flex flex-wrap gap-3">
+                {account && (
+                  <button type="button" onClick={handleEditOrDuplicateBoard} className="text-xs font-bold text-monopoly-green hover:underline">
+                    {ownsSelectedBoard ? '✎ Edit this board' : '⎘ Duplicate & customize this board'}
+                  </button>
+                )}
+                {hasPreset && (
+                  <button type="button" onClick={loadPresetSettings} className="text-xs font-bold text-monopoly-green hover:underline">
+                    ⚡ Load this board's saved game settings too
+                  </button>
+                )}
+              </div>
             </div>
           )}
           <div>
@@ -444,6 +515,19 @@ export function Landing() {
                 <input type="checkbox" checked={tradingEnabled} onChange={(e) => setTradingEnabled(e.target.checked)} />
                 Allow player-to-player trading
               </label>
+
+              <div>
+                <label className={labelClass}>Turn timer (seconds, 0 = off)</label>
+                <input
+                  type="number"
+                  min={0}
+                  value={turnTimerSeconds}
+                  onChange={(e) => setTurnTimerSeconds(e.target.value)}
+                  className={`${fieldClass} p-2 text-sm`}
+                  placeholder="0"
+                />
+                <p className="mt-1 text-xs font-medium text-ink-soft">Informational only — the host can force-end a stalled turn once it expires.</p>
+              </div>
 
               <label className="flex items-center gap-2 text-sm font-medium">
                 <input type="checkbox" checked={inflationEnabled} onChange={(e) => setInflationEnabled(e.target.checked)} />
