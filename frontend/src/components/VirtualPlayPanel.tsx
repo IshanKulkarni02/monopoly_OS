@@ -137,7 +137,7 @@ export function VirtualPlayPanel({
           {lastRoll && (
             <div className="rounded border-2 border-ink bg-board-card p-3 text-sm">
               <p className="font-mono text-lg font-bold text-ink">
-                🎲 {lastRoll.dice[0]} + {lastRoll.dice[1]}
+                🎲 {lastRoll.dice.join(' + ')}
                 {lastRoll.doubles ? ' (doubles!)' : ''}
               </p>
               {lastRoll.outcome === 'stayed_in_jail' && <p className="mt-1 font-bold text-monopoly-red">No doubles — still stuck in jail.</p>}

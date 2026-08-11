@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { useGameSocket } from '../hooks/useGameSocket'
 import { useSession } from '../hooks/useSession'
+import { useAccount } from '../hooks/useAccount'
 import { JoinCodeBadge } from '../components/JoinCodeBadge'
 import { PlayerList } from '../components/PlayerList'
 import { PropertyBoard } from '../components/PropertyBoard'
@@ -11,6 +12,7 @@ import { TransferPanel } from '../components/TransferPanel'
 import { DrawEventPanel } from '../components/DrawEventPanel'
 import { LandingPicker } from '../components/LandingPicker'
 import { VirtualPlayPanel } from '../components/VirtualPlayPanel'
+import { IrlLivePanel } from '../components/IrlLivePanel'
 import { EventFeed } from '../components/EventFeed'
 import { formatMoney } from '../boardData'
 import { BoardProvider } from '../hooks/useBoard'
@@ -35,6 +37,7 @@ import {
   addBot,
   addPlayer,
   getPlayerLog,
+  saveBoardTemplate,
 } from '../api/client'
 import type { DrawEventOutcome, EventLogOut, LandOutcome, RollOutcome } from '../api/types'
 
@@ -44,7 +47,12 @@ export function GamePage() {
   const { code = '' } = useParams()
   const { session, saveSession: persistSession } = useSession(code)
   const { state, connected } = useGameSocket(code)
+  const { account } = useAccount()
   const [tab, setTab] = useState<Tab>('board')
+  const [showSaveTemplate, setShowSaveTemplate] = useState(false)
+  const [templateKey, setTemplateKey] = useState('')
+  const [templateName, setTemplateName] = useState('')
+  const [templateSaved, setTemplateSaved] = useState<string | null>(null)
   const [joinName, setJoinName] = useState('')
   const [joinError, setJoinError] = useState<string | null>(null)
   const [joinBusy, setJoinBusy] = useState(false)
@@ -68,7 +76,7 @@ export function GamePage() {
 
   useEffect(() => {
     if (!initialTabSet && state?.status === 'active') {
-      setTab(state.play_mode === 'virtual' ? 'play' : 'board')
+      setTab(state.play_mode === 'virtual' || state.banker_mode === 'auto' ? 'play' : 'board')
       setInitialTabSet(true)
     }
   }, [state, initialTabSet])
@@ -213,6 +221,7 @@ export function GamePage() {
 
   const myPendingRequests = state.pending_transfers.filter((t) => t.from_player_id === me.id).length
   const isVirtual = state.play_mode === 'virtual'
+  const showIrlLiveTab = !isVirtual && state.banker_mode === 'auto'
   const showBankerTab = me.is_banker && (state.money_mode === 'banker_ledger' || state.money_mode === 'cash_counter')
   const showTransferTab = state.money_mode === 'digital_transfer'
   const showLandTab = !isVirtual && state.banker_mode === 'auto'
@@ -261,8 +270,68 @@ export function GamePage() {
             onPurchase={handlePurchase}
           />
         )}
+        {tab === 'play' && showIrlLiveTab && (
+          <IrlLivePanel
+            code={code}
+            state={state}
+            myPlayerId={me.id}
+            hostToken={session.hostToken}
+            playerToken={session.playerToken}
+            isHost={me.is_host}
+          />
+        )}
         {tab === 'board' && (
           <>
+            {me.is_host && account && (
+              <div className="mb-3 rounded border-2 border-ink bg-board-card p-3">
+                {!showSaveTemplate ? (
+                  <button
+                    onClick={() => setShowSaveTemplate(true)}
+                    className="text-sm font-bold text-monopoly-green hover:underline"
+                  >
+                    + Save this board as a reusable template
+                  </button>
+                ) : (
+                  <div className="flex flex-col gap-2">
+                    <input
+                      placeholder="Template key (e.g. friday-night)"
+                      value={templateKey}
+                      onChange={(e) => setTemplateKey(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, '-'))}
+                      className="rounded border-2 border-ink bg-board p-2 text-sm text-ink placeholder:text-ink-soft focus:outline-none focus:ring-2 focus:ring-monopoly-red"
+                    />
+                    <input
+                      placeholder="Display name"
+                      value={templateName}
+                      onChange={(e) => setTemplateName(e.target.value)}
+                      className="rounded border-2 border-ink bg-board p-2 text-sm text-ink placeholder:text-ink-soft focus:outline-none focus:ring-2 focus:ring-monopoly-red"
+                    />
+                    <div className="flex gap-2">
+                      <button
+                        disabled={actionBusy || !templateKey || !templateName}
+                        onClick={() =>
+                          guarded(async () => {
+                            await saveBoardTemplate(code, session.hostToken!, account.sessionToken, {
+                              key: templateKey,
+                              name: templateName,
+                              description: `Saved from ${state.name}`,
+                            })
+                            setTemplateSaved(templateName)
+                            setShowSaveTemplate(false)
+                          })
+                        }
+                        className="rounded border-2 border-ink bg-monopoly-green px-3 py-1.5 text-sm font-bold text-white hover:bg-monopoly-green-dark disabled:opacity-50"
+                      >
+                        Save
+                      </button>
+                      <button onClick={() => setShowSaveTemplate(false)} className="rounded border-2 border-ink px-3 py-1.5 text-sm font-bold text-ink-soft hover:bg-board">
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+                {templateSaved && <p className="mt-1 text-xs font-semibold text-monopoly-green">Saved "{templateSaved}" — pick it next time you host.</p>}
+              </div>
+            )}
             {purchaseMessage && <p className="mb-3 text-sm font-semibold text-ink">{purchaseMessage}</p>}
             <PropertyBoard
               properties={state.properties}
@@ -353,7 +422,7 @@ export function GamePage() {
       </main>
 
       <nav className="fixed bottom-0 left-0 right-0 mx-auto flex max-w-md overflow-x-auto border-t-4 border-ink bg-board-card">
-        {isVirtual && <TabButton label="Play" active={tab === 'play'} onClick={() => setTab('play')} />}
+        {(isVirtual || showIrlLiveTab) && <TabButton label="Play" active={tab === 'play'} onClick={() => setTab('play')} />}
         <TabButton label="Board" active={tab === 'board'} onClick={() => setTab('board')} />
         {showBankerTab && <TabButton label="Banker" active={tab === 'banker'} onClick={() => setTab('banker')} />}
         {showTransferTab && (

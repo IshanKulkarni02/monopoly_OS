@@ -24,6 +24,8 @@ DEFAULT_RULESET: dict = {
 
     "jail_fine": 50,
     "jail_max_turns": 3,
+    "dice_count": 2,
+    "turn_order_mode": "highest_roll_first",  # highest_roll_first | entry_order
 
     "auction_enabled": False,
     "trading_enabled": True,

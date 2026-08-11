@@ -4,6 +4,29 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 
+class SignupRequest(BaseModel):
+    email: str = Field(min_length=3, max_length=120)
+    password: str = Field(min_length=8, max_length=200)
+    name: str = Field(default="", max_length=60)
+
+
+class LoginRequest(BaseModel):
+    email: str = Field(min_length=3, max_length=120)
+    password: str = Field(min_length=1, max_length=200)
+
+
+class UserOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    email: str
+    name: str
+
+
+class AuthResponse(BaseModel):
+    user: UserOut
+    session_token: str
+
+
 class GameCreateRequest(BaseModel):
     host_name: str = Field(min_length=1, max_length=40)
     name: str = Field(default="Monopoly Night", max_length=60)
@@ -18,6 +41,8 @@ class GameCreateRequest(BaseModel):
     inflation_enabled: bool = False
     inflation_trigger: Literal["on_pass_go", "per_round"] = "on_pass_go"
     inflation_rate: float = Field(default=0.0, ge=0, le=1)
+    dice_count: int = Field(default=2, ge=1, le=4)
+    turn_order_mode: Literal["highest_roll_first", "entry_order"] = "highest_roll_first"
 
 
 class JoinGameRequest(BaseModel):
@@ -89,6 +114,7 @@ class BoardSummaryOut(BaseModel):
     description: str
     size: int
     is_preset: bool
+    owner_user_id: str | None
 
 
 class BoardDetailOut(BoardSummaryOut):
@@ -134,6 +160,7 @@ class GameStateOut(BaseModel):
     free_parking_pot_amount: int
     turn_order: list[str]
     current_turn_player_id: str | None
+    pending_turn_order_rolls: list[dict[str, Any]]
     players: list[PlayerOut]
     properties: list[PropertyOut]
     recent_log: list[EventLogOut]
@@ -189,3 +216,32 @@ class RollRequest(BaseModel):
 
 class AddBotRequest(BaseModel):
     name: str | None = Field(default=None, max_length=40)
+
+
+class RollForOrderRequest(BaseModel):
+    player_id: str
+    roll: int = Field(ge=1)
+
+
+class RollForPlayerRequest(BaseModel):
+    player_id: str
+    dice: list[int] = Field(min_length=1, max_length=4)
+    use_jail_free_card: bool = False
+    pay_fine: bool = False
+
+
+class MovePlayerRequest(BaseModel):
+    player_id: str
+    position: int = Field(ge=0)
+    resolve_landing: bool = True
+
+
+class SwapPlayersRequest(BaseModel):
+    player_a_id: str
+    player_b_id: str
+
+
+class SaveBoardTemplateRequest(BaseModel):
+    key: str = Field(min_length=1, max_length=40, pattern=r"^[a-z0-9_-]+$")
+    name: str = Field(min_length=1, max_length=60)
+    description: str = Field(default="", max_length=200)
