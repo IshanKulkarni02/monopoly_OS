@@ -5,7 +5,7 @@ from app import accounts, auth, schemas
 from app.bots import run_bots_until_human
 from app.connection_manager import manager
 from app.db import get_db
-from app.game_engine import board_engine, inflation, state as game_state
+from app.game_engine import board_engine, inflation, stats as game_stats, state as game_state
 from app.models import Player
 from app.serializers import serialize_game_state
 
@@ -70,6 +70,12 @@ def create_game(
 def get_game(code: str, db: Session = Depends(get_db)):
     game = auth.get_game_or_404(db, code)
     return serialize_game_state(db, game)
+
+
+@router.get("/{code}/stats")
+def get_stats(code: str, db: Session = Depends(get_db)):
+    game = auth.get_game_or_404(db, code)
+    return game_stats.compute_stats(db, game)
 
 
 @router.post("/{code}/join", response_model=schemas.JoinGameResponse)

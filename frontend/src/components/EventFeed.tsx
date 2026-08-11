@@ -1,7 +1,7 @@
 import { useFormatMoney } from '../hooks/useBoard'
 import type { EventLogOut } from '../api/types'
 
-function describe(entry: EventLogOut, formatMoney: (amount: number) => string): string {
+export function describe(entry: EventLogOut, formatMoney: (amount: number) => string): string {
   const p = entry.payload as Record<string, string | number | undefined>
   switch (entry.kind) {
     case 'transaction':
@@ -33,6 +33,32 @@ function describe(entry: EventLogOut, formatMoney: (amount: number) => string): 
     }
     case 'house_sold':
       return `Sold a house on ${p.property_name} for ${formatMoney(Number(p.refund))}`
+    case 'property_mortgaged':
+      return `${p.property_name} mortgaged for ${formatMoney(Number(p.value))}`
+    case 'property_unmortgaged':
+      return `${p.property_name} unmortgaged (paid ${formatMoney(Number(p.payoff))})`
+    case 'auction_started':
+      return `🔨 Auction started on ${p.property_name}`
+    case 'auction_won':
+      return `🔨 ${p.property_name} sold at auction for ${formatMoney(Number(p.amount))}`
+    case 'auction_failed':
+      return `🔨 No bids — ${p.property_name} stays unowned`
+    case 'auction_cancelled':
+      return `🔨 Auction on ${p.property_name} cancelled`
+    case 'auction_bid':
+      return `🔨 New bid: ${formatMoney(Number(p.amount))}`
+    case 'auction_passed':
+      return `🔨 A player passed on the auction`
+    case 'trade_proposed':
+      return `🤝 ${p.proposer} proposed a trade to ${p.recipient}`
+    case 'trade_accepted':
+      return `🤝 Trade between ${p.proposer} and ${p.recipient} completed`
+    case 'trade_declined':
+      return `🤝 A trade was declined`
+    case 'bankruptcy':
+      return `💥 ${p.player} went bankrupt (to ${p.creditor})`
+    case 'game_over':
+      return `🏆 ${p.winner} wins!`
     default:
       return entry.kind
   }

@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { Landing } from './pages/Landing'
 import { GamePage } from './pages/GamePage'
 import { BoardEditor } from './pages/BoardEditor'
+import { PublicDisplay } from './pages/PublicDisplay'
 import { AccountProvider } from './hooks/useAccount'
 
 function App() {
@@ -11,6 +12,7 @@ function App() {
         <Routes>
           <Route path="/" element={<Landing />} />
           <Route path="/g/:code" element={<GamePage />} />
+          <Route path="/g/:code/display" element={<PublicDisplay />} />
           <Route path="/boards/:key/edit" element={<BoardEditor />} />
         </Routes>
       </BrowserRouter>
