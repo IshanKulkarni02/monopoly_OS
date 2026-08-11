@@ -187,6 +187,27 @@ export interface GameStateOut {
   pending_trades: TradeOut[]
 }
 
+export interface PlayerStatOut {
+  player_id: string
+  name: string
+  net_worth: number
+  balance: number
+  properties_owned: number
+  status: 'active' | 'bankrupt' | 'left'
+}
+
+export interface GameStats {
+  players: PlayerStatOut[]
+  total_transactions: number
+  total_money_moved: number
+  most_valuable_property: { name: string; price: number; owner_name: string | null } | null
+  auctions_won: number
+  trades_completed: number
+  bankruptcies: number
+  houses_built: number
+  game_duration_seconds: number | null
+}
+
 export interface GameCreateResponse {
   game: GameStateOut
   host_player_id: string

@@ -7,6 +7,7 @@ import type {
   EventSystem,
   GameCreateResponse,
   GameStateOut,
+  GameStats,
   JoinGameResponse,
   LandOutcome,
   MoneyMode,
@@ -296,6 +297,10 @@ export function addPlayer(code: string, hostToken: string, name: string): Promis
 
 export function getGame(code: string): Promise<GameStateOut> {
   return request(`/api/games/${code}`)
+}
+
+export function getStats(code: string): Promise<GameStats> {
+  return request(`/api/games/${code}/stats`)
 }
 
 export function startGame(code: string, hostToken: string): Promise<GameStateOut> {

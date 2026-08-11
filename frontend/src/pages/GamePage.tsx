@@ -16,6 +16,9 @@ import { IrlLivePanel } from '../components/IrlLivePanel'
 import { AuctionPanel } from '../components/AuctionPanel'
 import { TradePanel } from '../components/TradePanel'
 import { TurnTimer } from '../components/TurnTimer'
+import { ToastContainer } from '../components/ToastContainer'
+import { StatsPanel } from '../components/StatsPanel'
+import { GmConsole } from '../components/GmConsole'
 import { EventFeed } from '../components/EventFeed'
 import { formatMoney } from '../boardData'
 import { BoardProvider } from '../hooks/useBoard'
@@ -67,7 +70,7 @@ function downloadJson(data: unknown, filename: string) {
   URL.revokeObjectURL(url)
 }
 
-type Tab = 'board' | 'banker' | 'transfer' | 'land' | 'draw' | 'play' | 'trade' | 'log' | 'mylog'
+type Tab = 'board' | 'banker' | 'transfer' | 'land' | 'draw' | 'play' | 'trade' | 'log' | 'mylog' | 'stats' | 'gm'
 
 export function GamePage() {
   const { code = '' } = useParams()
@@ -189,6 +192,14 @@ export function GamePage() {
       <div className="mx-auto flex min-h-screen max-w-md flex-col gap-6 p-6">
         <h1 className="text-center font-display text-2xl tracking-wide text-monopoly-red">{state.name}</h1>
         <JoinCodeBadge code={state.code} />
+        <a
+          href={`/g/${state.code}/display`}
+          target="_blank"
+          rel="noreferrer"
+          className="text-center text-xs font-bold text-monopoly-green hover:underline"
+        >
+          📺 Open public display (put this on a TV or shared screen)
+        </a>
         <div>
           <h2 className="mb-2 text-xs font-bold uppercase tracking-wide text-ink-soft">Players ({state.players.length})</h2>
           <PlayerList
@@ -302,6 +313,7 @@ export function GamePage() {
 
   return (
     <BoardProvider tiles={state.board.tiles} groups={state.board.groups} currency={state.ruleset.currency}>
+    <ToastContainer entries={state.recent_log} />
     <div className="mx-auto flex min-h-screen max-w-md flex-col pb-20">
       <header className="flex items-center justify-between border-b-4 border-ink bg-monopoly-red p-4 text-white">
         <div>
@@ -568,6 +580,30 @@ export function GamePage() {
         )}
         {tab === 'log' && <EventFeed entries={state.recent_log} emptyLabel="No activity yet" />}
         {tab === 'mylog' && <EventFeed entries={myLog} emptyLabel="Nothing has happened to you yet" />}
+        {tab === 'stats' && <StatsPanel code={code} />}
+        {tab === 'gm' && me.is_host && (
+          <GmConsole
+            state={state}
+            busy={actionBusy}
+            onForceEndTurn={() =>
+              guarded(async () => {
+                const tokens = await getPlayerTokens(code, session.hostToken!)
+                const currentId = state.current_turn_player_id
+                if (!currentId) return
+                await endTurn(code, currentId, tokens[currentId])
+              })
+            }
+            onCancelAuction={() => guarded(() => cancelAuction(code, session.hostToken!))}
+            onAdvanceRound={() => guarded(() => advanceRound(code, me.id, session.playerToken))}
+            onCancelTrade={(tradeId) => guarded(() => cancelTrade(code, me.id, session.playerToken, tradeId))}
+            onExport={() =>
+              guarded(async () => {
+                const data = await exportGame(code, session.hostToken!)
+                downloadJson(data, `${state.name.replace(/\s+/g, '-').toLowerCase()}.json`)
+              })
+            }
+          />
+        )}
       </main>
 
       <nav className="fixed bottom-0 left-0 right-0 mx-auto flex max-w-md overflow-x-auto border-t-4 border-ink bg-board-card">
@@ -592,6 +628,8 @@ export function GamePage() {
         )}
         <TabButton label="Log" active={tab === 'log'} onClick={() => setTab('log')} />
         <TabButton label="My log" active={tab === 'mylog'} onClick={() => setTab('mylog')} />
+        <TabButton label="Stats" active={tab === 'stats'} onClick={() => setTab('stats')} />
+        {me.is_host && <TabButton label="GM" active={tab === 'gm'} onClick={() => setTab('gm')} />}
       </nav>
     </div>
     </BoardProvider>
