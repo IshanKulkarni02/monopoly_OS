@@ -26,7 +26,9 @@ DEFAULT_RULESET: dict = {
     "jail_fine": 50,
     "jail_max_turns": 3,
     "dice_count": 2,
+    "dice_source": "server",  # server (app rolls for you) | manual (players roll physical dice and enter the result)
     "turn_order_mode": "highest_roll_first",  # highest_roll_first | entry_order
+    "board_layout": "immersive",  # immersive (IRL live-play fills the screen, controls in the center) | compact (small collapsible board, stacked controls)
 
     "auction_enabled": False,
     "auction_min_increment": 10,

@@ -61,7 +61,9 @@ class GameCreateRequest(BaseModel):
     inflation_trigger: Literal["on_pass_go", "per_round"] = "on_pass_go"
     inflation_rate: float = Field(default=0.0, ge=0, le=1)
     dice_count: int = Field(default=2, ge=1, le=4)
+    dice_source: Literal["server", "manual"] = "server"
     turn_order_mode: Literal["highest_roll_first", "entry_order"] = "highest_roll_first"
+    board_layout: Literal["immersive", "compact"] = "immersive"
     mystery_deck_mode: Literal["probability", "finite"] = "probability"
     track_denominations: bool = False
     auction_enabled: bool = False
@@ -312,6 +314,7 @@ class DrawEventRequest(BaseModel):
 class RollRequest(BaseModel):
     use_jail_free_card: bool = False
     pay_fine: bool = False
+    dice: list[int] | None = Field(default=None, min_length=1, max_length=4)
 
 
 class AddBotRequest(BaseModel):

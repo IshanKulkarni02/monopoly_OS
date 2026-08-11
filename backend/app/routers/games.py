@@ -36,7 +36,9 @@ def create_game(
         "rate": payload.inflation_rate,
     }
     overrides["dice_count"] = payload.dice_count
+    overrides["dice_source"] = payload.dice_source
     overrides["turn_order_mode"] = payload.turn_order_mode
+    overrides["board_layout"] = payload.board_layout
     overrides["mystery_deck_mode"] = payload.mystery_deck_mode
     if payload.track_denominations:
         overrides["currency"] = {"track_denominations": True}

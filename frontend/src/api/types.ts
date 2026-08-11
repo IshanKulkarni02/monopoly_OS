@@ -164,7 +164,9 @@ export interface GameStateOut {
     jail_fine: number
     jail_max_turns: number
     dice_count: number
+    dice_source: 'server' | 'manual'
     turn_order_mode: 'highest_roll_first' | 'entry_order'
+    board_layout: 'immersive' | 'compact'
     auction_enabled: boolean
     auction_min_increment: number
     trading_enabled: boolean

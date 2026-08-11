@@ -370,6 +370,8 @@ export function GamePage() {
             properties={state.properties}
             myPlayerId={me.id}
             currentTurnPlayerId={state.current_turn_player_id}
+            diceSource={state.ruleset.dice_source}
+            diceCount={state.ruleset.dice_count}
             busy={actionBusy}
             error={actionError}
             lastRoll={lastRoll}

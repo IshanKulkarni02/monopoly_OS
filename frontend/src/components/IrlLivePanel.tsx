@@ -73,6 +73,12 @@ export function IrlLivePanel({
   const formatMoney = useFormatMoney()
   const { currency } = useBoard()
   const diceCount = state.ruleset.dice_count ?? 2
+  // 'immersive' = the board itself fills the screen, controls live in its
+  // center (like the buttons-in-the-middle request this was built for).
+  // 'compact' = the original stacked-panel layout with a small collapsible
+  // map — a configurable choice, not a forced replacement, matching every
+  // other twist in this engine.
+  const layout: 'immersive' | 'compact' = state.ruleset.board_layout === 'compact' ? 'compact' : 'immersive'
   const [selectedId, setSelectedId] = useState<string>(state.current_turn_player_id || myPlayerId)
   const [diceInputs, setDiceInputs] = useState<string[]>(Array.from({ length: diceCount }, () => ''))
   const [orderRollInput, setOrderRollInput] = useState('')
@@ -126,18 +132,31 @@ export function IrlLivePanel({
   const rolledIds = new Set(state.pending_turn_order_rolls.map((r) => r.player_id))
   const waitingOn = activePlayers.filter((p) => !rolledIds.has(p.id))
 
-  if (state.turn_order.length === 0) {
+  // A board that fills the frame either uses the width edge-to-edge and
+  // centers vertically in whatever room is left (immersive — most phones
+  // are taller than wide, so a square board can't ever fill both
+  // dimensions; centering it makes that leftover space read as intentional
+  // instead of a stray gap), or sits in its usual small collapsible card
+  // (compact).
+  function boardWrapper(mapEl: React.ReactNode) {
+    if (layout !== 'immersive') return mapEl
     return (
-      <div className="flex flex-col gap-4">
-        <div className="rounded border-2 border-ink bg-board-card p-3">
-          <p className="text-sm font-bold uppercase tracking-wide text-ink-soft">Setting turn order</p>
-          <p className="mt-1 text-sm text-ink">
-            Each player rolls a physical die — tap their name, enter what they rolled.{' '}
-            {state.ruleset.turn_order_mode === 'entry_order'
-              ? 'Whoever is entered first goes first.'
-              : 'Highest roll goes first; ties re-roll.'}
-          </p>
-        </div>
+      <div className="-mx-4 flex min-h-[70vh] items-center justify-center">
+        <div className="w-full">{mapEl}</div>
+      </div>
+    )
+  }
+
+  if (state.turn_order.length === 0) {
+    const ceremonyContent = (
+      <div className="flex flex-col gap-2">
+        <p className="text-xs font-bold uppercase tracking-wide text-ink-soft">Setting turn order</p>
+        <p className="text-[11px] leading-snug text-ink">
+          Each player rolls a physical die — tap their name, enter what they rolled.{' '}
+          {state.ruleset.turn_order_mode === 'entry_order'
+            ? 'Whoever is entered first goes first.'
+            : 'Highest roll goes first; ties re-roll.'}
+        </p>
 
         <PlayerTabs players={activePlayers} selectedId={selectedId} onSelect={setSelectedId} />
 
@@ -154,7 +173,7 @@ export function IrlLivePanel({
               placeholder="What did they roll?"
               value={orderRollInput}
               onChange={(e) => setOrderRollInput(e.target.value)}
-              className="w-full rounded border-2 border-ink bg-board-card p-2 text-ink placeholder:text-ink-soft focus:outline-none focus:ring-2 focus:ring-monopoly-red"
+              className="w-full min-w-0 rounded border-2 border-ink bg-board p-2 text-ink placeholder:text-ink-soft focus:outline-none focus:ring-2 focus:ring-monopoly-red"
             />
             <button
               disabled={busy || !orderRollInput}
@@ -164,14 +183,12 @@ export function IrlLivePanel({
                   setOrderRollInput('')
                   if (res.outcome.outcome === 'tie') {
                     setLastOrderMessage(`Tie at ${res.outcome.roll} between ${res.outcome.tied_players.join(' & ')} — re-roll those two.`)
-                  } else if (res.outcome.outcome === 'order_set') {
-                    setLastOrderMessage(null)
                   } else {
                     setLastOrderMessage(null)
                   }
                 })
               }
-              className="rounded border-2 border-ink bg-monopoly-green px-4 py-2 font-bold text-white hover:bg-monopoly-green-dark disabled:opacity-50"
+              className="whitespace-nowrap rounded border-2 border-ink bg-monopoly-green px-3 py-2 text-sm font-bold text-white hover:bg-monopoly-green-dark disabled:opacity-50"
             >
               Record
             </button>
@@ -183,9 +200,18 @@ export function IrlLivePanel({
         )}
         {lastOrderMessage && <p className="text-sm font-semibold text-monopoly-red">{lastOrderMessage}</p>}
         {error && <p className="text-sm font-semibold text-monopoly-red">{error}</p>}
-
-        <BoardMap players={state.players} defaultCollapsed />
       </div>
+    )
+
+    return boardWrapper(
+      layout === 'immersive' ? (
+        <BoardMap players={state.players} properties={state.properties} fullScreen center={ceremonyContent} />
+      ) : (
+        <div className="flex flex-col gap-4">
+          {ceremonyContent}
+          <BoardMap players={state.players} properties={state.properties} defaultCollapsed />
+        </div>
+      ),
     )
   }
 
@@ -197,20 +223,31 @@ export function IrlLivePanel({
     ? state.properties.find((p) => p.id === lastRoll.landing!.property_id)
     : undefined
   const canBuy = lastRoll?.landing?.outcome === 'purchasable' && pendingProperty?.owner_id == null
+  const isMoving = gmMode === 'move'
 
-  return (
-    <div className="flex flex-col gap-4">
+  const movePickerContent = (
+    <div className="flex flex-col items-center gap-2 text-center">
+      <p className="text-sm font-bold uppercase tracking-wide text-ink-soft">Move {selectedPlayer?.name}</p>
+      <p className="text-xs text-ink">Tap any tile on the board to move them there.</p>
+      <button onClick={() => setGmMode('none')} className="rounded border-2 border-ink px-3 py-1.5 text-sm font-bold text-ink hover:bg-board">
+        Cancel
+      </button>
+    </div>
+  )
+
+  const liveContent = (
+    <div className="flex flex-col gap-2">
       <PlayerTabs players={activePlayers} selectedId={selectedId} currentTurnPlayerId={state.current_turn_player_id} onSelect={setSelectedId} />
 
       {isCurrentTurnSelected ? (
-        <div className="flex flex-col gap-3 rounded border-2 border-monopoly-green bg-monopoly-green/10 p-3">
-          <p className="text-sm font-bold uppercase tracking-wide text-monopoly-green-dark">{currentPlayer?.name}'s turn</p>
+        <div className="flex flex-col gap-2 rounded border-2 border-monopoly-green bg-monopoly-green/10 p-2">
+          <p className="text-xs font-bold uppercase tracking-wide text-monopoly-green-dark">{currentPlayer?.name}'s turn</p>
           {selectedPlayer && denominationSummary(selectedPlayer.denominations, currency.symbol) && (
-            <p className="font-mono text-xs text-ink-soft">{denominationSummary(selectedPlayer.denominations, currency.symbol)}</p>
+            <p className="font-mono text-[10px] text-ink-soft">{denominationSummary(selectedPlayer.denominations, currency.symbol)}</p>
           )}
-          {selectedPlayer?.in_jail && <p className="text-sm font-bold text-monopoly-red">In jail (attempt {selectedPlayer.jail_turns + 1} of 3)</p>}
+          {selectedPlayer?.in_jail && <p className="text-xs font-bold text-monopoly-red">In jail (attempt {selectedPlayer.jail_turns + 1} of 3)</p>}
 
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-1.5">
             {diceInputs.map((val, i) => (
               <input
                 key={i}
@@ -220,7 +257,7 @@ export function IrlLivePanel({
                 placeholder={`Die ${i + 1}`}
                 value={val}
                 onChange={(e) => setDiceInputs(diceInputs.map((v, idx) => (idx === i ? e.target.value : v)))}
-                className="w-20 rounded border-2 border-ink bg-board-card p-2 text-center text-ink focus:outline-none focus:ring-2 focus:ring-monopoly-red"
+                className="w-16 rounded border-2 border-ink bg-board p-1.5 text-center text-sm text-ink focus:outline-none focus:ring-2 focus:ring-monopoly-red"
               />
             ))}
           </div>
@@ -234,14 +271,14 @@ export function IrlLivePanel({
                 setDiceInputs(Array.from({ length: diceCount }, () => ''))
               })
             }
-            className="rounded border-2 border-ink bg-monopoly-green py-3 font-display text-lg tracking-wide text-white shadow-[3px_3px_0_#1a1a1a] transition hover:bg-monopoly-green-dark hover:shadow-[1px_1px_0_#1a1a1a] disabled:opacity-50 disabled:shadow-none"
+            className="rounded border-2 border-ink bg-monopoly-green py-2 font-display text-base tracking-wide text-white shadow-[3px_3px_0_#1a1a1a] transition hover:bg-monopoly-green-dark hover:shadow-[1px_1px_0_#1a1a1a] disabled:opacity-50 disabled:shadow-none"
           >
             Enter roll
           </button>
 
           {lastRoll && (
-            <div className="rounded border-2 border-ink bg-board-card p-3 text-sm">
-              <p className="font-mono text-lg font-bold text-ink">
+            <div className="rounded border-2 border-ink bg-board p-2 text-xs">
+              <p className="font-mono text-base font-bold text-ink">
                 🎲 {lastRoll.dice.join(' + ')}
                 {lastRoll.doubles ? ' (doubles!)' : ''}
               </p>
@@ -257,7 +294,7 @@ export function IrlLivePanel({
                       await purchaseProperty(code, selectedId, tok, lastRoll.landing!.property_id!)
                     })
                   }
-                  className="mt-2 rounded border-2 border-ink bg-monopoly-green px-3 py-1.5 text-sm font-bold text-white hover:bg-monopoly-green-dark disabled:opacity-50"
+                  className="mt-2 rounded border-2 border-ink bg-monopoly-green px-2 py-1 text-xs font-bold text-white hover:bg-monopoly-green-dark disabled:opacity-50"
                 >
                   Buy for {formatMoney(lastRoll.landing!.price ?? 0)}
                 </button>
@@ -275,25 +312,22 @@ export function IrlLivePanel({
                 setLastRoll(null)
               })
             }
-            className="rounded border-2 border-ink bg-board-card py-2 text-sm font-bold text-ink hover:bg-board disabled:opacity-50"
+            className="rounded border-2 border-ink bg-board py-1.5 text-xs font-bold text-ink hover:bg-board-card disabled:opacity-50"
           >
             End turn
           </button>
         </div>
       ) : (
-        <p className="text-center text-sm font-semibold text-ink-soft">Waiting for {currentPlayer?.name ?? '…'} to play</p>
+        <p className="text-center text-xs font-semibold text-ink-soft">Waiting for {currentPlayer?.name ?? '…'} to play</p>
       )}
 
-      {error && <p className="text-sm font-semibold text-monopoly-red">{error}</p>}
+      {error && <p className="text-xs font-semibold text-monopoly-red">{error}</p>}
 
       {isHost && (
-        <div className="flex flex-col gap-2 rounded border-2 border-ink bg-board-card p-3">
-          <p className="text-xs font-bold uppercase tracking-wide text-ink-soft">GM tools — {selectedPlayer?.name}</p>
-          <div className="flex flex-wrap gap-2">
-            <button
-              onClick={() => setGmMode(gmMode === 'move' ? 'none' : 'move')}
-              className={`rounded border-2 border-ink px-3 py-1.5 text-sm font-bold ${gmMode === 'move' ? 'bg-monopoly-gold text-ink' : 'text-ink hover:bg-board'}`}
-            >
+        <div className="flex flex-col gap-1.5 rounded border-2 border-ink bg-board p-2">
+          <p className="text-[10px] font-bold uppercase tracking-wide text-ink-soft">GM tools — {selectedPlayer?.name}</p>
+          <div className="flex flex-wrap gap-1.5">
+            <button onClick={() => setGmMode('move')} className="rounded border-2 border-ink px-2 py-1 text-xs font-bold text-ink hover:bg-board-card">
               Move to tile…
             </button>
             <button
@@ -301,14 +335,14 @@ export function IrlLivePanel({
                 setSwapFirstId(selectedId)
                 setGmMode('swap-pick-b')
               }}
-              className={`rounded border-2 border-ink px-3 py-1.5 text-sm font-bold ${gmMode === 'swap-pick-b' ? 'bg-monopoly-gold text-ink' : 'text-ink hover:bg-board'}`}
+              className={`rounded border-2 border-ink px-2 py-1 text-xs font-bold ${gmMode === 'swap-pick-b' ? 'bg-monopoly-gold text-ink' : 'text-ink hover:bg-board-card'}`}
             >
               Swap {selectedPlayer?.name} with…
             </button>
           </div>
 
           {gmMode === 'swap-pick-b' && swapFirstId && (
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-1.5">
               {activePlayers
                 .filter((p) => p.id !== swapFirstId)
                 .map((p) => (
@@ -323,32 +357,51 @@ export function IrlLivePanel({
                         setSwapFirstId(null)
                       })
                     }
-                    className="rounded border-2 border-ink bg-board px-3 py-1.5 text-sm font-bold text-ink hover:bg-monopoly-gold"
+                    className="rounded border-2 border-ink bg-board-card px-2 py-1 text-xs font-bold text-ink hover:bg-monopoly-gold"
                   >
                     Swap with {p.name}
                   </button>
                 ))}
             </div>
           )}
-
-          {gmMode === 'move' && (
-            <BoardMap
-              players={state.players}
-              pickMode
-              pickLabel={`Move ${selectedPlayer?.name} to…`}
-              onPickTile={(position) =>
-                guarded(async () => {
-                  if (!hostToken) return
-                  await movePlayer(code, hostToken, { playerId: selectedId, position })
-                  setGmMode('none')
-                })
-              }
-            />
-          )}
         </div>
       )}
+    </div>
+  )
 
-      {gmMode !== 'move' && <BoardMap players={state.players} defaultCollapsed />}
+  const pickModeProps = isMoving
+    ? {
+        pickMode: true,
+        pickLabel: `Move ${selectedPlayer?.name} to…`,
+        onPickTile: (position: number) =>
+          guarded(async () => {
+            if (!hostToken) return
+            await movePlayer(code, hostToken, { playerId: selectedId, position })
+            setGmMode('none')
+          }),
+      }
+    : {}
+
+  if (layout === 'immersive') {
+    return boardWrapper(
+      <BoardMap
+        players={state.players}
+        properties={state.properties}
+        fullScreen
+        center={isMoving ? movePickerContent : liveContent}
+        {...pickModeProps}
+      />,
+    )
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      {liveContent}
+      {isMoving ? (
+        <BoardMap players={state.players} properties={state.properties} {...pickModeProps} />
+      ) : (
+        <BoardMap players={state.players} properties={state.properties} defaultCollapsed />
+      )}
     </div>
   )
 }
