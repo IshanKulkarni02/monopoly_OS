@@ -561,6 +561,10 @@ export function Landing() {
           </button>
         </form>
       )}
+
+      <a href="/lab" className="text-center text-xs font-bold text-ink-soft hover:underline">
+        🧪 Economy Lab — simulate games to test a board or ruleset
+      </a>
     </div>
   )
 }

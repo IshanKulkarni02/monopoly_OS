@@ -208,6 +208,31 @@ export interface GameStats {
   game_duration_seconds: number | null
 }
 
+export interface SimulationAggregate {
+  games_played: number
+  games_hit_turn_cap: number
+  average_turns_played: number
+  win_rate_by_starting_position: Record<string, number>
+  average_final_net_worth: number
+  average_bankruptcies_per_game: number
+  average_auctions_per_game: number
+  average_trades_per_game: number
+  average_houses_built_per_game: number
+  average_money_moved_per_game: number
+}
+
+export interface SimulationCompareResult {
+  baseline: SimulationAggregate
+  variant: SimulationAggregate
+}
+
+export interface LandingProbabilityTile {
+  position: number
+  name: string
+  kind: TileKind
+  probability: number
+}
+
 export interface GameCreateResponse {
   game: GameStateOut
   host_player_id: string
