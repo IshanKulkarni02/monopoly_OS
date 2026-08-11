@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.db import init_db
-from app.routers import accounts, auctions, banker, board_editor, boards, currency, games, irl_live, players, trading, transfer, virtual, ws
+from app.routers import accounts, auctions, banker, board_editor, boards, currency, games, irl_live, players, simulation, trading, transfer, virtual, ws
 
 
 @asynccontextmanager
@@ -44,6 +44,7 @@ app.include_router(irl_live.router)
 app.include_router(players.router)
 app.include_router(transfer.router)
 app.include_router(virtual.router)
+app.include_router(simulation.router)
 app.include_router(ws.router)
 
 # Serve the built frontend as a single deployable artifact when present.
