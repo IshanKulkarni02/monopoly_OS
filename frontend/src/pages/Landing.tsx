@@ -113,7 +113,9 @@ export function Landing() {
   const [cashType, setCashType] = useState<'cash' | 'upi'>('cash')
   const [moneyMode, setMoneyMode] = useState<MoneyMode>('banker_ledger')
   const [diceCount, setDiceCount] = useState('2')
+  const [diceSource, setDiceSource] = useState<'server' | 'manual'>('server')
   const [turnOrderMode, setTurnOrderMode] = useState<'highest_roll_first' | 'entry_order'>('highest_roll_first')
+  const [boardLayout, setBoardLayout] = useState<'immersive' | 'compact'>('immersive')
   const [mysteryDeckMode, setMysteryDeckMode] = useState<'probability' | 'finite'>('probability')
   const [trackDenominations, setTrackDenominations] = useState(false)
   const [auctionEnabled, setAuctionEnabled] = useState(false)
@@ -254,7 +256,9 @@ export function Landing() {
         inflationTrigger,
         inflationRate: (Number(inflationRate) || 0) / 100,
         diceCount: Number(diceCount) || 2,
+        diceSource: playMode === 'virtual' ? diceSource : 'server',
         turnOrderMode,
+        boardLayout: isIrlTracked ? boardLayout : 'immersive',
         mysteryDeckMode,
         trackDenominations,
         auctionEnabled,
@@ -465,6 +469,58 @@ export function Landing() {
                 <option value="highest_roll_first">Everyone rolls, highest goes first</option>
                 <option value="entry_order">Whoever's entered first goes first</option>
               </select>
+            </div>
+          )}
+
+          {isIrlTracked && (
+            <div>
+              <label className={labelClass}>Board layout</label>
+              <div className="flex gap-2 rounded border-2 border-ink p-1">
+                <button
+                  type="button"
+                  onClick={() => setBoardLayout('immersive')}
+                  className={`flex-1 rounded py-2 text-sm font-bold ${boardLayout === 'immersive' ? 'bg-monopoly-green text-white' : 'text-ink-soft'}`}
+                >
+                  🗺️ Full-screen board
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBoardLayout('compact')}
+                  className={`flex-1 rounded py-2 text-sm font-bold ${boardLayout === 'compact' ? 'bg-monopoly-green text-white' : 'text-ink-soft'}`}
+                >
+                  📋 Compact list
+                </button>
+              </div>
+              <p className="mt-1 text-xs font-medium text-ink-soft">
+                {boardLayout === 'immersive'
+                  ? 'The whole screen becomes the board, with controls in the middle — like a real board with markers.'
+                  : 'A small collapsible board with all controls stacked in a list.'}
+              </p>
+            </div>
+          )}
+
+          {playMode === 'virtual' && (
+            <div>
+              <label className={labelClass}>How do you want to roll?</label>
+              <div className="flex gap-2 rounded border-2 border-ink p-1">
+                <button
+                  type="button"
+                  onClick={() => setDiceSource('server')}
+                  className={`flex-1 rounded py-2 text-sm font-bold ${diceSource === 'server' ? 'bg-monopoly-green text-white' : 'text-ink-soft'}`}
+                >
+                  🎲 App rolls for you
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDiceSource('manual')}
+                  className={`flex-1 rounded py-2 text-sm font-bold ${diceSource === 'manual' ? 'bg-monopoly-green text-white' : 'text-ink-soft'}`}
+                >
+                  🎲 Roll physical dice
+                </button>
+              </div>
+              {diceSource === 'manual' && (
+                <p className="mt-1 text-xs font-medium text-ink-soft">Players roll their own dice and type in the result — no random rolls from the app.</p>
+              )}
             </div>
           )}
 

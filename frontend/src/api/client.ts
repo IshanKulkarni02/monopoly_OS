@@ -51,7 +51,9 @@ export function createGame(input: {
   inflationTrigger: 'on_pass_go' | 'per_round'
   inflationRate: number
   diceCount: number
+  diceSource?: 'server' | 'manual'
   turnOrderMode: 'highest_roll_first' | 'entry_order'
+  boardLayout?: 'immersive' | 'compact'
   mysteryDeckMode: 'probability' | 'finite'
   trackDenominations: boolean
   auctionEnabled?: boolean
@@ -77,7 +79,9 @@ export function createGame(input: {
       inflation_trigger: input.inflationTrigger,
       inflation_rate: input.inflationRate,
       dice_count: input.diceCount,
+      dice_source: input.diceSource ?? 'server',
       turn_order_mode: input.turnOrderMode,
+      board_layout: input.boardLayout ?? 'immersive',
       mystery_deck_mode: input.mysteryDeckMode,
       track_denominations: input.trackDenominations,
       turn_timer_seconds: input.turnTimerSeconds ?? 0,
@@ -439,12 +443,16 @@ export function rollDice(
   code: string,
   playerId: string,
   playerToken: string,
-  input: { useJailFreeCard?: boolean; payFine?: boolean } = {},
+  input: { useJailFreeCard?: boolean; payFine?: boolean; dice?: number[] } = {},
 ): Promise<RollResult> {
   return request(`/api/games/${code}/roll`, {
     method: 'POST',
     headers: { 'x-player-id': playerId, 'x-player-token': playerToken },
-    body: JSON.stringify({ use_jail_free_card: input.useJailFreeCard ?? false, pay_fine: input.payFine ?? false }),
+    body: JSON.stringify({
+      use_jail_free_card: input.useJailFreeCard ?? false,
+      pay_fine: input.payFine ?? false,
+      dice: input.dice ?? null,
+    }),
   })
 }
 

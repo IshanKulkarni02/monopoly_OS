@@ -29,9 +29,15 @@ async def roll(
     game = auth.get_game_or_404(db, code)
     player = auth.require_player(db, game, x_player_id, x_player_token)
 
+    dice_source = game.ruleset_json.get("dice_source", "server")
+    if dice_source == "manual" and not payload.dice:
+        raise HTTPException(status_code=400, detail="This game uses physical dice — enter what you rolled")
+    manual_dice = payload.dice if dice_source == "manual" else None
+
     try:
         result = turn_engine.roll_dice(
-            db, game, player=player, use_jail_free_card=payload.use_jail_free_card, pay_fine=payload.pay_fine
+            db, game, player=player, use_jail_free_card=payload.use_jail_free_card, pay_fine=payload.pay_fine,
+            manual_dice=manual_dice,
         )
         db.commit()
     except GameEngineError as exc:

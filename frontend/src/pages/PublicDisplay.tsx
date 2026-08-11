@@ -44,7 +44,7 @@ function DisplayBody({ state, connected }: { state: GameStateOut; connected: boo
         </p>
       )}
 
-      <BoardMap players={state.players} defaultCollapsed={false} />
+      <BoardMap players={state.players} properties={state.properties} defaultCollapsed={false} />
     </div>
   )
 }

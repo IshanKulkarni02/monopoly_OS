@@ -46,6 +46,8 @@ export function VirtualPlayPanel({
   properties,
   myPlayerId,
   currentTurnPlayerId,
+  diceSource = 'server',
+  diceCount = 2,
   busy,
   error,
   lastRoll,
@@ -57,16 +59,20 @@ export function VirtualPlayPanel({
   properties: PropertyOut[]
   myPlayerId: string
   currentTurnPlayerId: string | null
+  /** 'manual' means players physically roll and type in what they got, instead of the app rolling for them. */
+  diceSource?: 'server' | 'manual'
+  diceCount?: number
   busy: boolean
   error: string | null
   lastRoll: RollOutcome | null
-  onRoll: (opts: { useJailFreeCard?: boolean; payFine?: boolean }) => void
+  onRoll: (opts: { useJailFreeCard?: boolean; payFine?: boolean; dice?: number[] }) => void
   onEndTurn: () => void
   onPurchase: (propertyId: string) => void
 }) {
   const formatMoney = useFormatMoney()
   const { tiles } = useBoard()
   const [jailChoice, setJailChoice] = useState<'roll' | 'card' | 'fine'>('roll')
+  const [diceInputs, setDiceInputs] = useState<string[]>(Array.from({ length: diceCount }, () => ''))
   const me = players.find((p) => p.id === myPlayerId)!
   const isMyTurn = currentTurnPlayerId === myPlayerId
   const currentPlayer = players.find((p) => p.id === currentTurnPlayerId)
@@ -121,17 +127,36 @@ export function VirtualPlayPanel({
             </div>
           )}
 
+          {diceSource === 'manual' && (
+            <div className="flex flex-wrap gap-2">
+              {diceInputs.map((val, i) => (
+                <input
+                  key={i}
+                  type="number"
+                  min={1}
+                  max={6}
+                  placeholder={`Die ${i + 1}`}
+                  value={val}
+                  onChange={(e) => setDiceInputs(diceInputs.map((v, idx) => (idx === i ? e.target.value : v)))}
+                  className="w-20 rounded border-2 border-ink bg-board-card p-2 text-center text-ink focus:outline-none focus:ring-2 focus:ring-monopoly-red"
+                />
+              ))}
+            </div>
+          )}
+
           <button
-            disabled={busy}
-            onClick={() =>
+            disabled={busy || (diceSource === 'manual' && diceInputs.some((v) => !v))}
+            onClick={() => {
               onRoll({
                 useJailFreeCard: me.in_jail && jailChoice === 'card',
                 payFine: me.in_jail && jailChoice === 'fine',
+                dice: diceSource === 'manual' ? diceInputs.map(Number) : undefined,
               })
-            }
+              if (diceSource === 'manual') setDiceInputs(Array.from({ length: diceCount }, () => ''))
+            }}
             className="rounded border-2 border-ink bg-monopoly-green py-3 font-display text-lg tracking-wide text-white shadow-[3px_3px_0_#1a1a1a] transition hover:bg-monopoly-green-dark hover:shadow-[1px_1px_0_#1a1a1a] disabled:opacity-50 disabled:shadow-none"
           >
-            Roll dice
+            {diceSource === 'manual' ? 'Enter roll' : 'Roll dice'}
           </button>
 
           {lastRoll && (
