@@ -1,0 +1,77 @@
+.debts-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+.debt-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  background: #fff;
+  border: 1px solid #d8cfa8;
+  border-radius: 8px;
+  padding: 0.7rem;
+}
+
+.debt-form .tx-row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.debt-form label {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #333;
+}
+
+.debt-form input,
+.debt-form select {
+  padding: 0.45rem;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+}
+
+.debt-list h4 {
+  margin: 0.6rem 0 0.3rem;
+  font-size: 0.85rem;
+}
+
+.debt-list ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.debt-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  background: #fff;
+  border: 1px solid #eee;
+  border-radius: 6px;
+  padding: 0.45rem 0.6rem;
+  font-size: 0.85rem;
+}
+
+.debt-row.settled {
+  opacity: 0.6;
+}
+
+.debt-row button {
+  padding: 0.3rem 0.6rem;
+  border-radius: 6px;
+  border: 1px solid #1f5c3a;
+  background: #e8f3ea;
+  cursor: pointer;
+  font-weight: 700;
+  white-space: nowrap;
+}

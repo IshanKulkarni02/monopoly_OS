@@ -1,0 +1,347 @@
+.player-panel-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.player-card {
+  background: #fff;
+  border: 1px solid #d8cfa8;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.player-card.current-turn {
+  border-color: #1f5c3a;
+  border-width: 2px;
+  box-shadow: 0 0 0 2px rgba(31, 92, 58, 0.2);
+}
+
+.player-card-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 0.8rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+}
+
+.player-dot {
+  width: 0.9rem;
+  height: 0.9rem;
+  border-radius: 50%;
+  flex-shrink: 0;
+  border: 1px solid rgba(0, 0, 0, 0.3);
+}
+
+.turn-badge {
+  flex-shrink: 0;
+  background: #0a2e1c;
+  color: #fef200;
+  font-size: 0.7rem;
+  font-weight: 800;
+  border-radius: 4px;
+  padding: 0.1rem 0.35rem;
+}
+
+.your-turn-chip {
+  flex-shrink: 0;
+  background: #1f5c3a;
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  border-radius: 999px;
+  padding: 0.15rem 0.5rem;
+}
+
+.player-name {
+  font-weight: 700;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.player-cash {
+  font-weight: 700;
+  color: #1f5c3a;
+}
+
+.player-position {
+  color: #666;
+  font-size: 0.8rem;
+  max-width: 8rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.player-card-body {
+  padding: 0.7rem 0.8rem 0.9rem;
+  border-top: 1px solid #eee;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.waiting-text {
+  margin: 0;
+  padding: 0.5rem;
+  text-align: center;
+  color: #888;
+  font-size: 0.85rem;
+  font-style: italic;
+  background: #f7f5ec;
+  border-radius: 6px;
+}
+
+.dice-double {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.dice-row {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.die-btn {
+  flex: 1;
+  aspect-ratio: 1;
+  border-radius: 8px;
+  border: 2px solid #0a2e1c;
+  background: #fff;
+  color: #0a2e1c;
+  font-weight: 800;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.die-btn:hover {
+  background: #f0ede0;
+}
+
+.die-btn.selected {
+  background: #1f5c3a;
+  border-color: #0a2e1c;
+  color: #fff;
+}
+
+.dice-hint {
+  margin: 0;
+  font-size: 0.75rem;
+  color: #666;
+  text-align: center;
+}
+
+.buy-btn {
+  padding: 0.4rem 0.7rem;
+  border-radius: 6px;
+  border: 1px solid #1f5c3a;
+  background: #e8f3ea;
+  color: #0a2e1c;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.end-turn-btn {
+  padding: 0.6rem;
+  border-radius: 8px;
+  border: 2px solid #0a2e1c;
+  background: #fef200;
+  color: #0a2e1c;
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.end-turn-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.rent-due-box {
+  border: 2px solid #c0142c;
+  background: #fdecec;
+  border-radius: 8px;
+  padding: 0.6rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.rent-due-box p {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #7a0d1d;
+}
+
+.pay-rent-btn {
+  padding: 0.55rem;
+  border-radius: 8px;
+  border: 2px solid #7a0d1d;
+  background: #c0142c;
+  color: #fff;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.dismiss-rent-btn {
+  background: none;
+  border: none;
+  color: #7a0d1d;
+  font-size: 0.75rem;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0;
+}
+
+.jump-to-label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #444;
+}
+
+.jump-to-label select {
+  padding: 0.4rem;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+}
+
+.buy-or-auction {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.auction-toggle-btn {
+  background: none;
+  border: none;
+  color: #444;
+  font-size: 0.75rem;
+  text-decoration: underline;
+  cursor: pointer;
+  align-self: center;
+}
+
+.auction-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.5rem;
+  border: 1px dashed #999;
+  border-radius: 6px;
+}
+
+.auction-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.auction-form input,
+.auction-form select {
+  padding: 0.35rem;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+}
+
+.auction-form-actions {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.free-parking-claim-btn {
+  padding: 0.55rem;
+  border-radius: 8px;
+  border: 2px solid #b8ab00;
+  background: #fef200;
+  color: #0a2e1c;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.buy-btn {
+  background: #fef200;
+  border-color: #b8ab00;
+}
+
+.owned-properties h4 {
+  margin: 0 0 0.3rem;
+  font-size: 0.85rem;
+}
+
+.owned-properties ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.owned-property-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  flex-wrap: wrap;
+}
+
+.owned-property-name {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.house-badge {
+  font-size: 0.75rem;
+  letter-spacing: -0.1em;
+}
+
+.house-badge.hotel {
+  letter-spacing: normal;
+  color: #c0142c;
+  font-weight: 700;
+}
+
+.owned-property-actions {
+  display: flex;
+  gap: 0.3rem;
+  flex-wrap: wrap;
+}
+
+.owned-property-row button {
+  padding: 0.25rem 0.5rem;
+  border-radius: 6px;
+  border: 1px solid #999;
+  background: #f4f4f4;
+  cursor: pointer;
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.owned-property-row button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.house-btn {
+  border-color: #1f5c3a !important;
+  background: #e8f3ea !important;
+}

@@ -1,0 +1,93 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+.app-shell {
+  min-height: 100vh;
+  padding: 0.6rem;
+  font-family: system-ui, sans-serif;
+  background: radial-gradient(circle at 50% 0%, #1f5c3a 0%, #123d26 70%, #0a2e1c 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  width: min(98vw, 92vh);
+  margin: 0 auto 0.6rem;
+  padding: 0.5rem 0.9rem;
+  background: #c0142c;
+  border: 3px solid #0a2e1c;
+  border-radius: 8px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
+}
+
+.main-nav {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.main-nav button {
+  padding: 0.45rem 0.8rem;
+  border-radius: 8px;
+  border: 2px solid #0a2e1c;
+  background: #f7f2e3;
+  color: #0a2e1c;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.main-nav button.active {
+  background: #1f5c3a;
+  color: #fff;
+}
+
+.app-header h1 {
+  font-family: Georgia, "Times New Roman", serif;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #fff;
+  text-shadow: 0.05em 0.05em 0 #0a2e1c;
+  font-size: clamp(1.1rem, 3.4vw, 1.8rem);
+  margin: 0;
+}
+
+.settings-btn {
+  padding: 0.55rem 1rem;
+  border-radius: 8px;
+  border: 2px solid #0a2e1c;
+  background: #fef200;
+  color: #0a2e1c;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 0.95rem;
+  white-space: nowrap;
+}
+
+.settings-btn:hover {
+  background: #ffe;
+}
+
+.status-text {
+  text-align: center;
+  font-family: system-ui, sans-serif;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #f7f2e3;
+}
+
+.status-text.error {
+  color: #ffb3b3;
+}
