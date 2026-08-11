@@ -10,11 +10,14 @@ import type {
   GameStats,
   JoinGameResponse,
   LandOutcome,
+  LandingProbabilityTile,
   MoneyMode,
   OrderRollResult,
   PlayMode,
   PurchaseResult,
   RollResult,
+  SimulationAggregate,
+  SimulationCompareResult,
   TradeOut,
   UserOut,
 } from './types'
@@ -656,6 +659,54 @@ export function exportGame(code: string, hostToken: string): Promise<Record<stri
 
 export function importGame(data: Record<string, unknown>): Promise<GameCreateResponse> {
   return request('/api/games/import', { method: 'POST', body: JSON.stringify({ data }) })
+}
+
+// --- Economy Lab: headless simulation, config comparison, landing-probability analysis ---
+
+export interface SimulateInput {
+  boardKey: string
+  rulesetOverrides?: Record<string, unknown>
+  numGames: number
+  numBots: number
+  maxTurns: number
+}
+
+export function runSimulation(input: SimulateInput): Promise<SimulationAggregate> {
+  return request('/api/simulate', {
+    method: 'POST',
+    body: JSON.stringify({
+      board_key: input.boardKey,
+      ruleset_overrides: input.rulesetOverrides ?? {},
+      num_games: input.numGames,
+      num_bots: input.numBots,
+      max_turns: input.maxTurns,
+    }),
+  })
+}
+
+export function compareSimulations(input: {
+  boardKey: string
+  baselineOverrides: Record<string, unknown>
+  variantOverrides: Record<string, unknown>
+  numGames: number
+  numBots: number
+  maxTurns: number
+}): Promise<SimulationCompareResult> {
+  return request('/api/simulate/compare', {
+    method: 'POST',
+    body: JSON.stringify({
+      board_key: input.boardKey,
+      baseline_overrides: input.baselineOverrides,
+      variant_overrides: input.variantOverrides,
+      num_games: input.numGames,
+      num_bots: input.numBots,
+      max_turns: input.maxTurns,
+    }),
+  })
+}
+
+export function getLandingProbabilities(boardKey: string, diceCount: number): Promise<{ tiles: LandingProbabilityTile[] }> {
+  return request(`/api/boards/${boardKey}/landing_probabilities?dice_count=${diceCount}`)
 }
 
 export { ApiError }

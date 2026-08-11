@@ -224,6 +224,23 @@ class ImportGameRequest(BaseModel):
     data: dict[str, Any]
 
 
+class SimulateRequest(BaseModel):
+    board_key: str
+    ruleset_overrides: dict[str, Any] = {}
+    num_games: int = Field(default=10, ge=1, le=50)
+    num_bots: int = Field(default=4, ge=2, le=6)
+    max_turns: int = Field(default=500, ge=50, le=1000)
+
+
+class CompareSimulationRequest(BaseModel):
+    board_key: str
+    baseline_overrides: dict[str, Any] = {}
+    variant_overrides: dict[str, Any] = {}
+    num_games: int = Field(default=10, ge=1, le=50)
+    num_bots: int = Field(default=4, ge=2, le=6)
+    max_turns: int = Field(default=500, ge=50, le=1000)
+
+
 class GameStateOut(BaseModel):
     id: str
     code: str

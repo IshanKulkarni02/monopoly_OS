@@ -214,6 +214,7 @@ class Game(Base):
     properties: Mapped[list["Property"]] = relationship(back_populates="game", cascade="all, delete-orphan")
     transactions: Mapped[list["Transaction"]] = relationship(back_populates="game", cascade="all, delete-orphan")
     events: Mapped[list["EventLogEntry"]] = relationship(back_populates="game", cascade="all, delete-orphan")
+    trades: Mapped[list["Trade"]] = relationship(back_populates="game", cascade="all, delete-orphan")
 
 
 class Player(Base):
@@ -296,7 +297,7 @@ class Trade(Base):
     status: Mapped[str] = mapped_column(String, default="pending")  # pending | accepted | declined | cancelled
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
-    game: Mapped["Game"] = relationship()
+    game: Mapped["Game"] = relationship(back_populates="trades")
 
 
 class EventLogEntry(Base):
