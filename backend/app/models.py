@@ -64,6 +64,11 @@ class Board(Base):
     is_preset: Mapped[bool] = mapped_column(Boolean, default=False)
     owner_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     default_ruleset_overrides: Mapped[dict] = mapped_column(JSON, default=dict)
+    # {play_mode, banker_mode, money_mode} — set only when a board was saved
+    # from a live game via "save as template" (games.py's save_board_template),
+    # so the create-game form can offer to restore the *whole* setup, not
+    # just tile layout. Empty for the built-in presets.
+    preset_play_options: Mapped[dict] = mapped_column(JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     groups: Mapped[list["BoardGroup"]] = relationship(back_populates="board", cascade="all, delete-orphan")
@@ -179,6 +184,15 @@ class Game(Base):
     round_number: Mapped[int] = mapped_column(Integer, default=1)
     turn_order: Mapped[list[str]] = mapped_column(JSON, default=list)
     current_turn_player_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    # Set every time current_turn_player_id changes; None otherwise (before
+    # turn order exists). Purely informational — the client computes a
+    # countdown from `turn_started_at + ruleset.turn_timer_seconds`, nothing
+    # server-side ever force-ends a turn on a timer (see win_conditions.py's
+    # module docstring / the Phase 6 memory entry for why: no scheduler
+    # exists to enforce a real deadline, so the host uses the existing
+    # act-as-player-via-token pattern to force-end one manually instead).
+    turn_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    winner_player_id: Mapped[str | None] = mapped_column(String, nullable=True)
     # Setup-time dice-roll-for-order ceremony (IRL companion mode). A list of
     # {"player_id": ..., "roll": ...} in the order the host recorded them —
     # cleared once `turn_order` is finalized. Virtual mode never uses this;

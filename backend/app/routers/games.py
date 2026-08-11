@@ -42,6 +42,7 @@ def create_game(
         overrides["currency"] = {"track_denominations": True}
     overrides["auction_enabled"] = payload.auction_enabled
     overrides["trading_enabled"] = payload.trading_enabled
+    overrides["turn_timer_seconds"] = payload.turn_timer_seconds
 
     try:
         game, host = game_state.create_game(
@@ -168,10 +169,45 @@ def save_board_template(
             db, game.board, key=payload.key, name=payload.name, description=payload.description,
             owner_user_id=owner.id,
         )
+        # Saving from a *live game* (not the board editor's generic
+        # duplicate) captures the whole setup as a reusable preset, not
+        # just tile layout: this game's actual ruleset choices (twists,
+        # currency, auction/trading toggles, ...) plus play_mode/
+        # banker_mode/money_mode, which aren't ruleset keys so they don't
+        # fit in default_ruleset_overrides — see Board.preset_play_options.
+        clone.default_ruleset_overrides = dict(game.ruleset_json)
+        clone.preset_play_options = {
+            "play_mode": game.play_mode,
+            "banker_mode": game.banker_mode,
+            "money_mode": game.money_mode,
+        }
+        db.commit()
     except board_engine.BoardEngineError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     return schemas.BoardDetailOut.model_validate(clone)
+
+
+@router.get("/{code}/export")
+def export_game(code: str, db: Session = Depends(get_db), x_host_token: str | None = Header(default=None)):
+    game = auth.get_game_or_404(db, code)
+    auth.require_host(game, x_host_token)
+    return game_state.export_game(game)
+
+
+@router.post("/import", response_model=schemas.GameCreateResponse)
+def import_game(payload: schemas.ImportGameRequest, db: Session = Depends(get_db)):
+    try:
+        game, host = game_state.import_game(db, payload.data)
+    except (ValueError, KeyError) as exc:
+        raise HTTPException(status_code=400, detail=f"Could not import this file: {exc}") from exc
+
+    return schemas.GameCreateResponse(
+        game=serialize_game_state(db, game),
+        host_player_id=host.id,
+        host_token=game.host_token,
+        player_token=host.token,
+    )
 
 
 @router.post("/{code}/advance_round", response_model=schemas.GameStateOut)

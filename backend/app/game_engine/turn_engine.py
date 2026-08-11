@@ -9,6 +9,7 @@ the same function every mode uses.
 """
 
 import random
+from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 
@@ -25,10 +26,15 @@ from app.game_engine.money_modes.banker_ledger import (
 from app.models import Game, Player
 
 
+def _now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
 def start_turn_order(game: Game, players: list[Player]) -> None:
     ordered = sorted(players, key=lambda p: p.joined_at)
     game.turn_order = [p.id for p in ordered]
     game.current_turn_player_id = game.turn_order[0] if game.turn_order else None
+    game.turn_started_at = _now() if game.current_turn_player_id else None
 
 
 def require_current_player(game: Game, player: Player) -> None:
@@ -50,6 +56,7 @@ def end_turn(db: Session, game: Game, *, player: Player) -> None:
     if next_id is None:
         return
     game.current_turn_player_id = next_id
+    game.turn_started_at = _now()
     logs.write_event(db, game_id=game.id, kind="turn_ended", player_ids=[player.id], payload={"next_player_id": next_id})
 
 
@@ -216,6 +223,7 @@ def record_order_roll(db: Session, game: Game, *, player: Player, roll: int) -> 
 
     game.turn_order = order
     game.current_turn_player_id = order[0]
+    game.turn_started_at = _now()
     game.pending_turn_order_rolls = []
     logs.write_event(db, game_id=game.id, kind="turn_order_set", player_ids=order, payload={"mode": mode, "order": order})
     return {"outcome": "order_set", "turn_order": order}
