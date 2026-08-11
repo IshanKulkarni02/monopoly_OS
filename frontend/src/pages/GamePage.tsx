@@ -15,6 +15,7 @@ import { VirtualPlayPanel } from '../components/VirtualPlayPanel'
 import { IrlLivePanel } from '../components/IrlLivePanel'
 import { AuctionPanel } from '../components/AuctionPanel'
 import { TradePanel } from '../components/TradePanel'
+import { TurnTimer } from '../components/TurnTimer'
 import { EventFeed } from '../components/EventFeed'
 import { formatMoney } from '../boardData'
 import { BoardProvider } from '../hooks/useBoard'
@@ -51,8 +52,20 @@ import {
   declineTrade,
   cancelTrade,
   declareBankruptcy,
+  exportGame,
+  getPlayerTokens,
 } from '../api/client'
 import type { AuctionState, DrawEventOutcome, EventLogOut, LandOutcome, RollOutcome } from '../api/types'
+
+function downloadJson(data: unknown, filename: string) {
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(url)
+}
 
 type Tab = 'board' | 'banker' | 'transfer' | 'land' | 'draw' | 'play' | 'trade' | 'log' | 'mylog'
 
@@ -62,6 +75,7 @@ export function GamePage() {
   const { state, connected } = useGameSocket(code)
   const { account } = useAccount()
   const [tab, setTab] = useState<Tab>('board')
+  const [showStandings, setShowStandings] = useState(false)
   const [showSaveTemplate, setShowSaveTemplate] = useState(false)
   const [templateKey, setTemplateKey] = useState('')
   const [templateName, setTemplateName] = useState('')
@@ -232,6 +246,49 @@ export function GamePage() {
     )
   }
 
+  if (state.status === 'ended') {
+    const winner = state.players.find((p) => p.id === state.winner_player_id)
+    const standings = [...state.players].sort((a, b) => b.net_worth - a.net_worth)
+    return (
+      <div className="mx-auto flex min-h-screen max-w-md flex-col gap-6 p-6">
+        <div className="rounded border-4 border-ink bg-monopoly-gold p-6 text-center shadow-[6px_6px_0_#1a1a1a]">
+          <p className="text-xs font-bold uppercase tracking-wide text-ink">Game over</p>
+          <h1 className="mt-1 font-display text-3xl tracking-wide text-ink">🏆 {winner?.name ?? 'Unknown'} wins!</h1>
+          <p className="mt-1 text-sm font-medium text-ink">Last player standing</p>
+        </div>
+        <div>
+          <h2 className="mb-2 text-xs font-bold uppercase tracking-wide text-ink-soft">Final standings (by net worth)</h2>
+          <ul className="flex flex-col gap-2">
+            {standings.map((p, i) => (
+              <li key={p.id} className="flex items-center justify-between rounded border-2 border-ink bg-board-card p-3">
+                <span className="font-bold text-ink">
+                  {i + 1}. {p.name} {p.status === 'bankrupt' && <span className="text-xs font-medium text-ink-soft">(bankrupt)</span>}
+                </span>
+                <span className="font-mono font-bold text-monopoly-green">{formatMoney(p.net_worth, state.ruleset.currency.symbol)}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+        {me.is_host && (
+          <button
+            onClick={() =>
+              guarded(async () => {
+                const data = await exportGame(code, session.hostToken!)
+                downloadJson(data, `${state.name.replace(/\s+/g, '-').toLowerCase()}-final.json`)
+              })
+            }
+            className="rounded border-2 border-ink bg-board-card py-2 text-sm font-bold text-ink hover:bg-board disabled:opacity-50"
+          >
+            ⬇ Save this game as a file
+          </button>
+        )}
+        <a href="/" className="rounded border-2 border-ink bg-monopoly-red py-3 text-center font-display text-lg tracking-wide text-white shadow-[3px_3px_0_#1a1a1a] hover:bg-monopoly-red-dark">
+          Host a new game
+        </a>
+      </div>
+    )
+  }
+
   const myPendingRequests = state.pending_transfers.filter((t) => t.from_player_id === me.id).length
   const isVirtual = state.play_mode === 'virtual'
   const showIrlLiveTab = !isVirtual && state.banker_mode === 'auto'
@@ -267,6 +324,21 @@ export function GamePage() {
 
       <main className="flex-1 p-4">
         {actionError && <p className="mb-3 text-sm font-semibold text-monopoly-red">{actionError}</p>}
+        <TurnTimer
+          turnStartedAt={state.turn_started_at}
+          turnTimerSeconds={state.ruleset.turn_timer_seconds}
+          currentPlayer={state.players.find((p) => p.id === state.current_turn_player_id)}
+          isHost={me.is_host}
+          busy={actionBusy}
+          onForceEndTurn={() =>
+            guarded(async () => {
+              const tokens = await getPlayerTokens(code, session.hostToken!)
+              const currentId = state.current_turn_player_id
+              if (!currentId) return
+              await endTurn(code, currentId, tokens[currentId])
+            })
+          }
+        />
         {activeAuction && (
           <AuctionPanel
             auction={activeAuction}
@@ -311,6 +383,32 @@ export function GamePage() {
         )}
         {tab === 'board' && (
           <>
+            <div className="mb-3 rounded border-2 border-ink bg-board-card p-3">
+              <button
+                onClick={() => setShowStandings(!showStandings)}
+                className="w-full text-left text-xs font-bold uppercase tracking-wide text-ink-soft"
+              >
+                Standings {showStandings ? '▴' : '▾'}
+              </button>
+              {showStandings && (
+                <div className="mt-2">
+                  <PlayerList players={state.players} myPlayerId={me.id} />
+                </div>
+              )}
+            </div>
+            {me.is_host && (
+              <button
+                onClick={() =>
+                  guarded(async () => {
+                    const data = await exportGame(code, session.hostToken!)
+                    downloadJson(data, `${state.name.replace(/\s+/g, '-').toLowerCase()}.json`)
+                  })
+                }
+                className="mb-3 w-full rounded border-2 border-ink bg-board-card py-2 text-sm font-bold text-ink hover:bg-board"
+              >
+                ⬇ Save game to a file (resume it later)
+              </button>
+            )}
             {me.is_host && account && (
               <div className="mb-3 rounded border-2 border-ink bg-board-card p-3">
                 {!showSaveTemplate ? (

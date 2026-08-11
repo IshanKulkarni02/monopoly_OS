@@ -37,6 +37,9 @@ export function PlayerList({
               )}
             </div>
             {notes && <span className="font-mono text-[10px] text-ink-soft">{notes}</span>}
+            {p.net_worth !== p.balance && (
+              <span className="font-mono text-[10px] text-ink-soft">net worth {formatMoney(p.net_worth)}</span>
+            )}
           </div>
           <div className="flex items-center gap-3">
             <span className="font-mono text-lg font-bold text-monopoly-green">{formatMoney(p.balance)}</span>

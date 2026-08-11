@@ -33,6 +33,9 @@ DEFAULT_RULESET: dict = {
     "trading_enabled": True,
     "bankruptcy_rule": "liquidate_then_eliminate",
     "win_condition": {"type": "last_standing"},
+    # 0 = no timer. Purely informational — see Game.turn_started_at's
+    # docstring for why nothing server-side auto-enforces it.
+    "turn_timer_seconds": 0,
 }
 
 

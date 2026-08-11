@@ -63,6 +63,29 @@ def test_game_created_while_logged_in_is_owned_by_user(client):
     del bob
 
 
+def test_saving_a_board_template_from_a_live_game_captures_the_whole_preset(client):
+    auth = client.post("/api/auth/signup", json={"email": "priya@example.com", "password": "password1", "name": "Priya"}).json()
+    data = client.post(
+        "/api/games",
+        json={"host_name": "Priya", "play_mode": "virtual", "banker_mode": "auto", "auction_enabled": True},
+        headers={"x-session-token": auth["session_token"]},
+    ).json()
+    code = data["game"]["code"]
+    host_token = data["host_token"]
+    client.post(f"/api/games/{code}/join", json={"name": "Sam"})
+    client.post(f"/api/games/{code}/start", headers={"x-host-token": host_token})
+
+    r = client.post(
+        f"/api/games/{code}/save_board_template",
+        json={"key": "priyas-preset", "name": "Priya's Preset", "description": "virtual + auctions"},
+        headers={"x-host-token": host_token, "x-session-token": auth["session_token"]},
+    )
+    assert r.status_code == 200
+    board = r.json()
+    assert board["preset_play_options"] == {"play_mode": "virtual", "banker_mode": "auto", "money_mode": "banker_ledger"}
+    assert board["default_ruleset_overrides"]["auction_enabled"] is True
+
+
 def test_save_board_template_requires_login(client):
     data = client.post("/api/games", json={"host_name": "Frank"}).json()
     code = data["game"]["code"]

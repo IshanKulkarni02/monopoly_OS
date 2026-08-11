@@ -52,6 +52,7 @@ export function createGame(input: {
   trackDenominations: boolean
   auctionEnabled?: boolean
   tradingEnabled?: boolean
+  turnTimerSeconds?: number
   sessionToken?: string | null
 }): Promise<GameCreateResponse> {
   return request('/api/games', {
@@ -75,6 +76,7 @@ export function createGame(input: {
       turn_order_mode: input.turnOrderMode,
       mystery_deck_mode: input.mysteryDeckMode,
       track_denominations: input.trackDenominations,
+      turn_timer_seconds: input.turnTimerSeconds ?? 0,
       auction_enabled: input.auctionEnabled ?? false,
       trading_enabled: input.tradingEnabled ?? true,
     }),
@@ -639,6 +641,16 @@ export function declareBankruptcy(
     headers: { 'x-player-id': playerId, 'x-player-token': playerToken },
     body: JSON.stringify({ creditor_player_id: creditorPlayerId }),
   })
+}
+
+// --- Save game / resume later: a portable JSON snapshot of playable state ---
+
+export function exportGame(code: string, hostToken: string): Promise<Record<string, unknown>> {
+  return request(`/api/games/${code}/export`, { headers: { 'x-host-token': hostToken } })
+}
+
+export function importGame(data: Record<string, unknown>): Promise<GameCreateResponse> {
+  return request('/api/games/import', { method: 'POST', body: JSON.stringify({ data }) })
 }
 
 export { ApiError }

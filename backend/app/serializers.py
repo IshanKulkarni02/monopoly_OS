@@ -1,6 +1,7 @@
 from sqlalchemy.orm import Session
 
 from app import schemas
+from app.game_engine.valuation import estimate_net_worth
 from app.models import EventLogEntry, Game, Trade, Transaction
 
 
@@ -43,8 +44,13 @@ def serialize_game_state(db: Session, game: Game) -> schemas.GameStateOut:
         free_parking_pot_amount=game.free_parking_pot_amount,
         turn_order=game.turn_order,
         current_turn_player_id=game.current_turn_player_id,
+        turn_started_at=game.turn_started_at,
+        winner_player_id=game.winner_player_id,
         pending_turn_order_rolls=game.pending_turn_order_rolls,
-        players=[schemas.PlayerOut.model_validate(p) for p in sorted(game.players, key=lambda p: p.joined_at)],
+        players=[
+            schemas.PlayerOut.model_validate(p).model_copy(update={"net_worth": estimate_net_worth(db, game, p)})
+            for p in sorted(game.players, key=lambda p: p.joined_at)
+        ],
         properties=[schemas.PropertyOut.model_validate(p) for p in sorted(game.properties, key=lambda p: p.space_index)],
         recent_log=[schemas.EventLogOut.model_validate(e) for e in recent],
         pending_transfers=[schemas.TransactionOut.model_validate(t) for t in pending_transfers],
